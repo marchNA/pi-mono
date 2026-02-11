@@ -682,21 +682,17 @@ async function startFeishu(): Promise<void> {
 				await updatePromise;
 			},
 
-			respondInThread: async (text: string) => {
-				updatePromise = updatePromise.then(async () => {
-					if (messageId) {
-						const replyId = await bot.replyMessage(messageId, text);
-						if (replyId) threadMessageIds.push(replyId);
-					}
-				});
-				await updatePromise;
+			respondInThread: async (_text: string) => {
+				// Feishu doesn't have collapsible threads like Slack.
+				// Sending replies here would flood the chat with tool details.
+				// Skip thread messages entirely - tool details are still logged to file.
 			},
 
 			setTyping: async (isTyping: boolean) => {
 				if (isTyping && !messageId) {
 					updatePromise = updatePromise.then(async () => {
 						if (!messageId) {
-							accumulatedText = eventFilename ? `Starting event: ${eventFilename}` : "Thinking...";
+							accumulatedText = eventFilename ? `Starting event: ${eventFilename}` : "⏳";
 							messageId = await bot.postMessage(event.channel, accumulatedText + workingIndicator);
 						}
 					});

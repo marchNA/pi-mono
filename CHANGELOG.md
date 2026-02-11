@@ -12,6 +12,7 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 - Daemon mode now works when running via `npx tsx` (uses `--import tsx` loader for child process instead of bare `node`)
 - Thinking content no longer sent as messages to the channel (still logged to file)
 - Bare `feishu`/`slack` argument now recognized as platform (previously treated as working directory, causing data to be written to project path)
+- Feishu bot no longer floods chat with thread replies for tool details and usage summary (`respondInThread` is now a no-op for Feishu)
 
 ## 2026-02-11
 
