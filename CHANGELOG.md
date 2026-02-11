@@ -6,6 +6,8 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 
 ### Added
 - `/commit <message>` slash command for quick git add + commit + push in pi interactive mode
+- Feishu bot image support: download and forward user-sent images to the LLM model
+- Feishu bot rich text (post) message support: extract text and inline images
 
 ### Fixed
 - Feishu bot system prompt no longer says "Slack bot assistant"; now uses platform-aware prompt with correct formatting rules (Markdown for Feishu, mrkdwn for Slack)

@@ -192,12 +192,56 @@ export class FeishuBot {
 
 		// Parse message content
 		let text = "";
+		const attachments: Attachment[] = [];
 		try {
 			if (message.message_type === "text") {
 				const content = JSON.parse(message.content);
 				text = content.text || "";
+			} else if (message.message_type === "image") {
+				const content = JSON.parse(message.content);
+				const imageKey = content.image_key;
+				if (imageKey) {
+					text = "[image]";
+					// Download image
+					const localPath = await this.downloadMessageImage(
+						message.message_id,
+						imageKey,
+						message.chat_id,
+						message.create_time || Date.now().toString(),
+					);
+					if (localPath) {
+						attachments.push({ original: `${imageKey}.png`, local: localPath });
+					}
+				}
+			} else if (message.message_type === "post") {
+				// Rich text message - extract plain text and images
+				const content = JSON.parse(message.content);
+				const postContent = content.content;
+				if (Array.isArray(postContent)) {
+					for (const line of postContent) {
+						if (!Array.isArray(line)) continue;
+						for (const element of line) {
+							if (element.tag === "text") {
+								text += element.text || "";
+							} else if (element.tag === "img" && element.image_key) {
+								const localPath = await this.downloadMessageImage(
+									message.message_id,
+									element.image_key,
+									message.chat_id,
+									message.create_time || Date.now().toString(),
+								);
+								if (localPath) {
+									attachments.push({ original: `${element.image_key}.png`, local: localPath });
+								}
+							}
+						}
+						text += "\n";
+					}
+					text = text.trim();
+				}
+				if (!text) text = "[post message]";
 			} else {
-				// For non-text messages, show type info
+				// For other message types, show type info
 				text = `[${message.message_type} message]`;
 			}
 		} catch {
@@ -233,6 +277,7 @@ export class FeishuBot {
 			user: senderId,
 			text: text.trim(),
 			messageId: message.message_id,
+			attachments,
 		};
 
 		// Log to log.jsonl
@@ -381,6 +426,46 @@ export class FeishuBot {
 			}
 		} catch (err) {
 			log.logWarning("Failed to upload file", err instanceof Error ? err.message : String(err));
+		}
+	}
+
+	/**
+	 * Download an image from a user message and save to attachments directory.
+	 * Returns the local path relative to workingDir, or null on failure.
+	 */
+	async downloadMessageImage(
+		messageId: string,
+		imageKey: string,
+		chatId: string,
+		timestamp: string,
+	): Promise<string | null> {
+		try {
+			const attachDir = join(this.workingDir, chatId, "attachments");
+			if (!existsSync(attachDir)) mkdirSync(attachDir, { recursive: true });
+
+			// Generate unique filename
+			const ts = timestamp.replace(/[:.]/g, "-");
+			const filename = `${ts}_${imageKey}.png`;
+			const localPath = `${chatId}/attachments/${filename}`;
+			const fullPath = join(this.workingDir, localPath);
+
+			// Download using messageResource API
+			const result = await this.client.im.messageResource.get({
+				params: { type: "image" },
+				path: { message_id: messageId, file_key: imageKey },
+			});
+
+			if (result) {
+				await result.writeFile(fullPath);
+				log.logInfo(`Downloaded image: ${localPath}`);
+				return localPath;
+			}
+
+			log.logWarning("Failed to download image", "Empty result from API");
+			return null;
+		} catch (err) {
+			log.logWarning("Failed to download message image", err instanceof Error ? err.message : String(err));
+			return null;
 		}
 	}
 
