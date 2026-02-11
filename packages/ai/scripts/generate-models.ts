@@ -1033,6 +1033,18 @@ async function generateModels() {
 			maxTokens: 64000,
 		},
 		{
+			id: "claude-opus-4-6-thinking",
+			name: "Claude Opus 4.6 Thinking (Antigravity)",
+			api: "google-gemini-cli",
+			provider: "google-antigravity",
+			baseUrl: ANTIGRAVITY_ENDPOINT,
+			reasoning: true,
+			input: ["text", "image"],
+			cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+			contextWindow: 200000,
+			maxTokens: 128000,
+		},
+		{
 			id: "gpt-oss-120b-medium",
 			name: "GPT-OSS 120B Medium (Antigravity)",
 			api: "google-gemini-cli",

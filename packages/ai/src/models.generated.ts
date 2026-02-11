@@ -906,6 +906,23 @@ export const MODELS = {
 			contextWindow: 256000,
 			maxTokens: 256000,
 		} satisfies Model<"bedrock-converse-stream">,
+		"moonshotai.kimi-k2.5": {
+			id: "moonshotai.kimi-k2.5",
+			name: "Kimi K2.5",
+			api: "bedrock-converse-stream",
+			provider: "amazon-bedrock",
+			baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
+			reasoning: true,
+			input: ["text", "image"],
+			cost: {
+				input: 0.6,
+				output: 3,
+				cacheRead: 0,
+				cacheWrite: 0,
+			},
+			contextWindow: 256000,
+			maxTokens: 256000,
+		} satisfies Model<"bedrock-converse-stream">,
 		"nvidia.nemotron-nano-12b-v2": {
 			id: "nvidia.nemotron-nano-12b-v2",
 			name: "NVIDIA Nemotron Nano 12B v2 VL BF16",
@@ -1808,7 +1825,7 @@ export const MODELS = {
 				cacheRead: 0.125,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"azure-openai-responses">,
 		"gpt-5-chat-latest": {
@@ -1842,7 +1859,7 @@ export const MODELS = {
 				cacheRead: 0.125,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"azure-openai-responses">,
 		"gpt-5-mini": {
@@ -1859,7 +1876,7 @@ export const MODELS = {
 				cacheRead: 0.025,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"azure-openai-responses">,
 		"gpt-5-nano": {
@@ -1876,7 +1893,7 @@ export const MODELS = {
 				cacheRead: 0.005,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"azure-openai-responses">,
 		"gpt-5-pro": {
@@ -1910,7 +1927,7 @@ export const MODELS = {
 				cacheRead: 0.13,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"azure-openai-responses">,
 		"gpt-5.1-chat-latest": {
@@ -1944,7 +1961,7 @@ export const MODELS = {
 				cacheRead: 0.125,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"azure-openai-responses">,
 		"gpt-5.1-codex-max": {
@@ -1961,7 +1978,7 @@ export const MODELS = {
 				cacheRead: 0.125,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"azure-openai-responses">,
 		"gpt-5.1-codex-mini": {
@@ -1978,7 +1995,7 @@ export const MODELS = {
 				cacheRead: 0.025,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"azure-openai-responses">,
 		"gpt-5.2": {
@@ -1995,7 +2012,7 @@ export const MODELS = {
 				cacheRead: 0.175,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"azure-openai-responses">,
 		"gpt-5.2-chat-latest": {
@@ -2029,7 +2046,7 @@ export const MODELS = {
 				cacheRead: 0.175,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"azure-openai-responses">,
 		"gpt-5.2-pro": {
@@ -2046,7 +2063,7 @@ export const MODELS = {
 				cacheRead: 0,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"azure-openai-responses">,
 		"gpt-5.3-codex": {
@@ -2063,7 +2080,7 @@ export const MODELS = {
 				cacheRead: 0.175,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"azure-openai-responses">,
 		"o1": {
@@ -2987,6 +3004,23 @@ export const MODELS = {
 			},
 			contextWindow: 200000,
 			maxTokens: 64000,
+		} satisfies Model<"google-gemini-cli">,
+		"claude-opus-4-6-thinking": {
+			id: "claude-opus-4-6-thinking",
+			name: "Claude Opus 4.6 Thinking (Antigravity)",
+			api: "google-gemini-cli",
+			provider: "google-antigravity",
+			baseUrl: "https://daily-cloudcode-pa.sandbox.googleapis.com",
+			reasoning: true,
+			input: ["text", "image"],
+			cost: {
+				input: 5,
+				output: 25,
+				cacheRead: 0.5,
+				cacheWrite: 6.25,
+			},
+			contextWindow: 200000,
+			maxTokens: 128000,
 		} satisfies Model<"google-gemini-cli">,
 		"claude-sonnet-4-5": {
 			id: "claude-sonnet-4-5",
@@ -4615,7 +4649,7 @@ export const MODELS = {
 				cacheRead: 0.125,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5-chat-latest": {
@@ -4649,7 +4683,7 @@ export const MODELS = {
 				cacheRead: 0.125,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5-mini": {
@@ -4666,7 +4700,7 @@ export const MODELS = {
 				cacheRead: 0.025,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5-nano": {
@@ -4683,7 +4717,7 @@ export const MODELS = {
 				cacheRead: 0.005,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5-pro": {
@@ -4717,7 +4751,7 @@ export const MODELS = {
 				cacheRead: 0.13,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5.1-chat-latest": {
@@ -4751,7 +4785,7 @@ export const MODELS = {
 				cacheRead: 0.125,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5.1-codex-max": {
@@ -4768,7 +4802,7 @@ export const MODELS = {
 				cacheRead: 0.125,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5.1-codex-mini": {
@@ -4785,7 +4819,7 @@ export const MODELS = {
 				cacheRead: 0.025,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5.2": {
@@ -4802,7 +4836,7 @@ export const MODELS = {
 				cacheRead: 0.175,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5.2-chat-latest": {
@@ -4836,7 +4870,7 @@ export const MODELS = {
 				cacheRead: 0.175,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5.2-pro": {
@@ -4853,7 +4887,7 @@ export const MODELS = {
 				cacheRead: 0,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5.3-codex": {
@@ -4870,7 +4904,7 @@ export const MODELS = {
 				cacheRead: 0.175,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"o1": {
@@ -5319,23 +5353,6 @@ export const MODELS = {
 			contextWindow: 204800,
 			maxTokens: 131072,
 		} satisfies Model<"openai-completions">,
-		"glm-4.7-free": {
-			id: "glm-4.7-free",
-			name: "GLM-4.7 Free",
-			api: "openai-completions",
-			provider: "opencode",
-			baseUrl: "https://opencode.ai/zen/v1",
-			reasoning: true,
-			input: ["text"],
-			cost: {
-				input: 0,
-				output: 0,
-				cacheRead: 0,
-				cacheWrite: 0,
-			},
-			contextWindow: 204800,
-			maxTokens: 131072,
-		} satisfies Model<"openai-completions">,
 		"gpt-5": {
 			id: "gpt-5",
 			name: "GPT-5",
@@ -5350,7 +5367,7 @@ export const MODELS = {
 				cacheRead: 0.107,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5-codex": {
@@ -5367,7 +5384,7 @@ export const MODELS = {
 				cacheRead: 0.107,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5-nano": {
@@ -5384,7 +5401,7 @@ export const MODELS = {
 				cacheRead: 0,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5.1": {
@@ -5401,7 +5418,7 @@ export const MODELS = {
 				cacheRead: 0.107,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5.1-codex": {
@@ -5418,7 +5435,7 @@ export const MODELS = {
 				cacheRead: 0.107,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5.1-codex-max": {
@@ -5435,7 +5452,7 @@ export const MODELS = {
 				cacheRead: 0.125,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5.1-codex-mini": {
@@ -5452,7 +5469,7 @@ export const MODELS = {
 				cacheRead: 0.025,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5.2": {
@@ -5469,7 +5486,7 @@ export const MODELS = {
 				cacheRead: 0.175,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"gpt-5.2-codex": {
@@ -5486,7 +5503,7 @@ export const MODELS = {
 				cacheRead: 0.175,
 				cacheWrite: 0,
 			},
-			contextWindow: 400000,
+			contextWindow: 272000,
 			maxTokens: 128000,
 		} satisfies Model<"openai-responses">,
 		"kimi-k2": {
@@ -5591,23 +5608,6 @@ export const MODELS = {
 			contextWindow: 204800,
 			maxTokens: 131072,
 		} satisfies Model<"anthropic-messages">,
-		"qwen3-coder": {
-			id: "qwen3-coder",
-			name: "Qwen3 Coder",
-			api: "openai-completions",
-			provider: "opencode",
-			baseUrl: "https://opencode.ai/zen/v1",
-			reasoning: false,
-			input: ["text"],
-			cost: {
-				input: 0.45,
-				output: 1.8,
-				cacheRead: 0,
-				cacheWrite: 0,
-			},
-			contextWindow: 262144,
-			maxTokens: 65536,
-		} satisfies Model<"openai-completions">,
 		"trinity-large-preview-free": {
 			id: "trinity-large-preview-free",
 			name: "Trinity Large Preview",
@@ -5638,23 +5638,6 @@ export const MODELS = {
 			cost: {
 				input: 2,
 				output: 8,
-				cacheRead: 0,
-				cacheWrite: 0,
-			},
-			contextWindow: 256000,
-			maxTokens: 4096,
-		} satisfies Model<"openai-completions">,
-		"ai21/jamba-mini-1.7": {
-			id: "ai21/jamba-mini-1.7",
-			name: "AI21: Jamba Mini 1.7",
-			api: "openai-completions",
-			provider: "openrouter",
-			baseUrl: "https://openrouter.ai/api/v1",
-			reasoning: false,
-			input: ["text"],
-			cost: {
-				input: 0.19999999999999998,
-				output: 0.39999999999999997,
 				cacheRead: 0,
 				cacheWrite: 0,
 			},
@@ -7336,9 +7319,9 @@ export const MODELS = {
 			reasoning: true,
 			input: ["text", "image"],
 			cost: {
-				input: 0.3,
-				output: 1.5,
-				cacheRead: 0.049999999999999996,
+				input: 0.44999999999999996,
+				output: 2.25,
+				cacheRead: 0.070000002,
 				cacheWrite: 0,
 			},
 			contextWindow: 262144,
@@ -8364,6 +8347,23 @@ export const MODELS = {
 			contextWindow: 200000,
 			maxTokens: 100000,
 		} satisfies Model<"openai-completions">,
+		"openrouter/aurora-alpha": {
+			id: "openrouter/aurora-alpha",
+			name: "Aurora Alpha",
+			api: "openai-completions",
+			provider: "openrouter",
+			baseUrl: "https://openrouter.ai/api/v1",
+			reasoning: true,
+			input: ["text"],
+			cost: {
+				input: 0,
+				output: 0,
+				cacheRead: 0,
+				cacheWrite: 0,
+			},
+			contextWindow: 128000,
+			maxTokens: 50000,
+		} satisfies Model<"openai-completions">,
 		"openrouter/auto": {
 			id: "openrouter/auto",
 			name: "Auto Router",
@@ -8477,7 +8477,7 @@ export const MODELS = {
 			cost: {
 				input: 1.5999999999999999,
 				output: 6.3999999999999995,
-				cacheRead: 0.64,
+				cacheRead: 0.32,
 				cacheWrite: 0,
 			},
 			contextWindow: 32768,
@@ -8494,11 +8494,11 @@ export const MODELS = {
 			cost: {
 				input: 0.39999999999999997,
 				output: 1.2,
-				cacheRead: 0.16,
+				cacheRead: 0.08,
 				cacheWrite: 0,
 			},
-			contextWindow: 131072,
-			maxTokens: 8192,
+			contextWindow: 1000000,
+			maxTokens: 32768,
 		} satisfies Model<"openai-completions">,
 		"qwen/qwen-plus-2025-07-28": {
 			id: "qwen/qwen-plus-2025-07-28",
@@ -8527,7 +8527,7 @@ export const MODELS = {
 			input: ["text"],
 			cost: {
 				input: 0.39999999999999997,
-				output: 4,
+				output: 1.2,
 				cacheRead: 0,
 				cacheWrite: 0,
 			},
@@ -8545,10 +8545,10 @@ export const MODELS = {
 			cost: {
 				input: 0.049999999999999996,
 				output: 0.19999999999999998,
-				cacheRead: 0.02,
+				cacheRead: 0.01,
 				cacheWrite: 0,
 			},
-			contextWindow: 1000000,
+			contextWindow: 131072,
 			maxTokens: 8192,
 		} satisfies Model<"openai-completions">,
 		"qwen/qwen-vl-max": {
@@ -8566,7 +8566,7 @@ export const MODELS = {
 				cacheWrite: 0,
 			},
 			contextWindow: 131072,
-			maxTokens: 8192,
+			maxTokens: 32768,
 		} satisfies Model<"openai-completions">,
 		"qwen/qwen3-14b": {
 			id: "qwen/qwen3-14b",
@@ -8594,12 +8594,12 @@ export const MODELS = {
 			reasoning: true,
 			input: ["text"],
 			cost: {
-				input: 0.19999999999999998,
-				output: 0.6,
-				cacheRead: 0,
+				input: 0.22,
+				output: 0.88,
+				cacheRead: 0.11,
 				cacheWrite: 0,
 			},
-			contextWindow: 40960,
+			contextWindow: 131072,
 			maxTokens: 4096,
 		} satisfies Model<"openai-completions">,
 		"qwen/qwen3-235b-a22b-2507": {
@@ -8783,10 +8783,10 @@ export const MODELS = {
 			cost: {
 				input: 0.3,
 				output: 1.5,
-				cacheRead: 0.08,
+				cacheRead: 0.06,
 				cacheWrite: 0,
 			},
-			contextWindow: 128000,
+			contextWindow: 1000000,
 			maxTokens: 65536,
 		} satisfies Model<"openai-completions">,
 		"qwen/qwen3-coder-next": {
@@ -8817,10 +8817,10 @@ export const MODELS = {
 			cost: {
 				input: 1,
 				output: 5,
-				cacheRead: 0.09999999999999999,
+				cacheRead: 0.19999999999999998,
 				cacheWrite: 0,
 			},
-			contextWindow: 128000,
+			contextWindow: 1000000,
 			maxTokens: 65536,
 		} satisfies Model<"openai-completions">,
 		"qwen/qwen3-coder:exacto": {
@@ -8871,7 +8871,24 @@ export const MODELS = {
 				cacheRead: 0.24,
 				cacheWrite: 0,
 			},
-			contextWindow: 256000,
+			contextWindow: 262144,
+			maxTokens: 65536,
+		} satisfies Model<"openai-completions">,
+		"qwen/qwen3-max-thinking": {
+			id: "qwen/qwen3-max-thinking",
+			name: "Qwen: Qwen3 Max Thinking",
+			api: "openai-completions",
+			provider: "openrouter",
+			baseUrl: "https://openrouter.ai/api/v1",
+			reasoning: true,
+			input: ["text"],
+			cost: {
+				input: 1.2,
+				output: 6,
+				cacheRead: 0,
+				cacheWrite: 0,
+			},
+			contextWindow: 262144,
 			maxTokens: 32768,
 		} satisfies Model<"openai-completions">,
 		"qwen/qwen3-next-80b-a3b-instruct": {
@@ -9024,7 +9041,7 @@ export const MODELS = {
 				cacheRead: 0,
 				cacheWrite: 0,
 			},
-			contextWindow: 256000,
+			contextWindow: 131072,
 			maxTokens: 32768,
 		} satisfies Model<"openai-completions">,
 		"qwen/qwq-32b": {
@@ -9095,22 +9112,22 @@ export const MODELS = {
 			contextWindow: 32768,
 			maxTokens: 32768,
 		} satisfies Model<"openai-completions">,
-		"stepfun-ai/step3": {
-			id: "stepfun-ai/step3",
-			name: "StepFun: Step3",
+		"stepfun/step-3.5-flash": {
+			id: "stepfun/step-3.5-flash",
+			name: "StepFun: Step 3.5 Flash",
 			api: "openai-completions",
 			provider: "openrouter",
 			baseUrl: "https://openrouter.ai/api/v1",
 			reasoning: true,
-			input: ["text", "image"],
+			input: ["text"],
 			cost: {
-				input: 0.5700000000000001,
-				output: 1.42,
-				cacheRead: 0,
+				input: 0.09999999999999999,
+				output: 0.3,
+				cacheRead: 0.02,
 				cacheWrite: 0,
 			},
-			contextWindow: 65536,
-			maxTokens: 65536,
+			contextWindow: 256000,
+			maxTokens: 256000,
 		} satisfies Model<"openai-completions">,
 		"stepfun/step-3.5-flash:free": {
 			id: "stepfun/step-3.5-flash:free",
