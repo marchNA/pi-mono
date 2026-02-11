@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync } from "fs";
 import { appendFile, writeFile } from "fs/promises";
 import { join } from "path";
 import * as log from "./log.js";
+import { toLocalISOString } from "./log.js";
 
 export interface Attachment {
 	original: string; // original filename from uploader
@@ -136,7 +137,7 @@ export class ChannelStore {
 				// Epoch milliseconds
 				date = new Date(parseInt(message.ts, 10));
 			}
-			message.date = date.toISOString();
+			message.date = toLocalISOString(date);
 		}
 
 		const line = `${JSON.stringify(message)}\n`;
@@ -149,7 +150,7 @@ export class ChannelStore {
 	 */
 	async logBotResponse(channelId: string, text: string, ts: string): Promise<void> {
 		await this.logMessage(channelId, {
-			date: new Date().toISOString(),
+			date: toLocalISOString(new Date()),
 			ts,
 			user: "bot",
 			text,

@@ -23,8 +23,9 @@ import type { ChannelInfo, SlackContext, UserInfo } from "./slack.js";
 import type { ChannelStore } from "./store.js";
 import { createMomTools, setUploadFunction } from "./tools/index.js";
 
-// Hardcoded model for now - TODO: make configurable (issue #63)
-const model = getModel("anthropic", "claude-sonnet-4-5");
+// Default model - can be overridden via settings
+const DEFAULT_PROVIDER = "google-antigravity";
+const DEFAULT_MODEL = "claude-sonnet-4-5";
 
 export interface PendingMessage {
 	userName: string;
@@ -42,13 +43,13 @@ export interface AgentRunner {
 	abort(): void;
 }
 
-async function getAnthropicApiKey(authStorage: AuthStorage): Promise<string> {
-	const key = await authStorage.getApiKey("anthropic");
+async function getProviderApiKey(authStorage: AuthStorage, provider: string): Promise<string> {
+	const key = await authStorage.getApiKey(provider);
 	if (!key) {
 		throw new Error(
-			"No API key found for anthropic.\n\n" +
-				"Set an API key environment variable, or use /login with Anthropic and link to auth.json from " +
-				join(homedir(), ".pi", "mom", "auth.json"),
+			`No API key found for ${provider}.\n\n` +
+				"Set an API key environment variable, or use /login in the coding agent and link auth.json:\n" +
+				`  ln -s ${join(homedir(), ".pi", "agent", "auth.json")} ${join(homedir(), ".pi", "mom", "auth.json")}`,
 		);
 	}
 	return key;
@@ -146,6 +147,7 @@ function buildSystemPrompt(
 	channels: ChannelInfo[],
 	users: UserInfo[],
 	skills: Skill[],
+	language?: string,
 ): string {
 	const channelPath = `${workspacePath}/${channelId}`;
 	const isDocker = sandboxConfig.type === "docker";
@@ -325,6 +327,7 @@ grep '"userName":"mario"' log.jsonl | tail -20 | jq -c '{date: .date[0:19], text
 - attach: Share files to Slack
 
 Each tool requires a "label" parameter (shown to user).
+${language ? `\n\nIMPORTANT: You MUST respond in ${language}. All your text output, explanations, and comments should be in ${language}. Code, file paths, tool calls, and technical identifiers remain in their original language.` : ""}
 `;
 }
 
@@ -418,7 +421,6 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 	// Initial system prompt (will be updated each run with fresh memory/channels/users/skills)
 	const memory = getMemory(channelDir);
 	const skills = loadMomSkills(channelDir, workspacePath);
-	const systemPrompt = buildSystemPrompt(workspacePath, channelId, memory, sandboxConfig, [], [], skills);
 
 	// Create session manager and settings manager
 	// Use a fixed context.jsonl file per channel (not timestamped like coding-agent)
@@ -426,10 +428,22 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 	const sessionManager = SessionManager.open(contextFile, channelDir);
 	const settingsManager = new MomSettingsManager(join(channelDir, ".."));
 
+	const language = settingsManager.getLanguage();
+	const systemPrompt = buildSystemPrompt(workspacePath, channelId, memory, sandboxConfig, [], [], skills, language);
+
 	// Create AuthStorage and ModelRegistry
 	// Auth stored outside workspace so agent can't access it
-	const authStorage = new AuthStorage(join(homedir(), ".pi", "mom", "auth.json"));
+	// Try mom-specific auth first, fall back to coding-agent auth
+	const momAuthPath = join(homedir(), ".pi", "mom", "auth.json");
+	const agentAuthPath = join(homedir(), ".pi", "agent", "auth.json");
+	const authPath = existsSync(momAuthPath) ? momAuthPath : agentAuthPath;
+	const authStorage = new AuthStorage(authPath);
 	const modelRegistry = new ModelRegistry(authStorage);
+
+	// Resolve provider and model from settings
+	const configuredProvider = settingsManager.getDefaultProvider() || DEFAULT_PROVIDER;
+	const configuredModel = settingsManager.getDefaultModel() || DEFAULT_MODEL;
+	const model = getModel(configuredProvider as any, configuredModel as any);
 
 	// Create agent
 	const agent = new Agent({
@@ -440,7 +454,7 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 			tools,
 		},
 		convertToLlm,
-		getApiKey: async () => getAnthropicApiKey(authStorage),
+		getApiKey: async () => getProviderApiKey(authStorage, configuredProvider),
 	});
 
 	// Load existing messages
@@ -673,6 +687,7 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 				ctx.channels,
 				ctx.users,
 				skills,
+				language,
 			);
 			session.agent.setSystemPrompt(systemPrompt);
 

@@ -6,6 +6,26 @@ export interface LogContext {
 	channelName?: string; // For display like #dev-team vs C16HET4EQ
 }
 
+/**
+ * Format a Date as local ISO string with timezone offset.
+ * Example: 2026-02-11T19:03:43.155+08:00
+ */
+export function toLocalISOString(date: Date): string {
+	const offset = -date.getTimezoneOffset();
+	const sign = offset >= 0 ? "+" : "-";
+	const absOffset = Math.abs(offset);
+	const hh = String(Math.floor(absOffset / 60)).padStart(2, "0");
+	const mm = String(absOffset % 60).padStart(2, "0");
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, "0");
+	const day = String(date.getDate()).padStart(2, "0");
+	const hours = String(date.getHours()).padStart(2, "0");
+	const mins = String(date.getMinutes()).padStart(2, "0");
+	const secs = String(date.getSeconds()).padStart(2, "0");
+	const ms = String(date.getMilliseconds()).padStart(3, "0");
+	return `${year}-${month}-${day}T${hours}:${mins}:${secs}.${ms}${sign}${hh}:${mm}`;
+}
+
 function timestamp(): string {
 	const now = new Date();
 	const hh = String(now.getHours()).padStart(2, "0");

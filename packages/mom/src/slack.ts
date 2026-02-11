@@ -3,6 +3,7 @@ import { WebClient } from "@slack/web-api";
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "fs";
 import { basename, join } from "path";
 import * as log from "./log.js";
+import { toLocalISOString } from "./log.js";
 import type { Attachment, ChannelStore } from "./store.js";
 
 // ============================================================================
@@ -228,7 +229,7 @@ export class SlackBot {
 	 */
 	logBotResponse(channel: string, text: string, ts: string): void {
 		this.logToFile(channel, {
-			date: new Date().toISOString(),
+			date: toLocalISOString(new Date()),
 			ts,
 			user: "bot",
 			text,
@@ -418,7 +419,7 @@ export class SlackBot {
 		// Process attachments - queues downloads in background
 		const attachments = event.files ? this.store.processAttachments(event.channel, event.files, event.ts) : [];
 		this.logToFile(event.channel, {
-			date: new Date(parseFloat(event.ts) * 1000).toISOString(),
+			date: toLocalISOString(new Date(parseFloat(event.ts) * 1000)),
 			ts: event.ts,
 			user: event.user,
 			userName: user?.userName,
@@ -512,7 +513,7 @@ export class SlackBot {
 			const attachments = msg.files ? this.store.processAttachments(channelId, msg.files, msg.ts!) : [];
 
 			this.logToFile(channelId, {
-				date: new Date(parseFloat(msg.ts!) * 1000).toISOString(),
+				date: toLocalISOString(new Date(parseFloat(msg.ts!) * 1000)),
 				ts: msg.ts!,
 				user: isMomMessage ? "bot" : msg.user!,
 				userName: isMomMessage ? undefined : user?.userName,

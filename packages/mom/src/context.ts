@@ -13,6 +13,7 @@
 import type { UserMessage } from "@mariozechner/pi-ai";
 import type { SessionManager, SessionMessageEntry } from "@mariozechner/pi-coding-agent";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { homedir } from "os";
 import { dirname, join } from "path";
 
 // ============================================================================
@@ -163,6 +164,15 @@ export interface MomSettings {
 	defaultThinkingLevel?: "off" | "minimal" | "low" | "medium" | "high";
 	compaction?: Partial<MomCompactionSettings>;
 	retry?: Partial<MomRetrySettings>;
+	platform?: "slack" | "feishu";
+	slack?: {
+		appToken?: string;
+		botToken?: string;
+	};
+	feishu?: {
+		appId?: string;
+		appSecret?: string;
+	};
 }
 
 const DEFAULT_COMPACTION: MomCompactionSettings = {
@@ -179,7 +189,9 @@ const DEFAULT_RETRY: MomRetrySettings = {
 
 /**
  * Settings manager for mom.
- * Stores settings in the workspace root directory.
+ * Loads settings from ~/.pi/mom/settings.json (user-level),
+ * then merges with workspace settings.json (workspace-level overrides user-level).
+ * Writes always go to the workspace settings.json.
  */
 export class MomSettingsManager {
 	private settingsPath: string;
@@ -190,17 +202,32 @@ export class MomSettingsManager {
 		this.settings = this.load();
 	}
 
-	private load(): MomSettings {
-		if (!existsSync(this.settingsPath)) {
-			return {};
-		}
-
+	private loadFile(path: string): MomSettings {
+		if (!existsSync(path)) return {};
 		try {
-			const content = readFileSync(this.settingsPath, "utf-8");
-			return JSON.parse(content);
+			return JSON.parse(readFileSync(path, "utf-8"));
 		} catch {
 			return {};
 		}
+	}
+
+	private load(): MomSettings {
+		// Load user-level settings (~/.pi/mom/settings.json)
+		const userSettingsPath = join(homedir(), ".pi", "mom", "settings.json");
+		const userSettings = this.loadFile(userSettingsPath);
+
+		// Load workspace-level settings (workingDir/settings.json)
+		const workspaceSettings = this.loadFile(this.settingsPath);
+
+		// Merge: workspace overrides user, nested objects merge shallowly
+		return {
+			...userSettings,
+			...workspaceSettings,
+			compaction: { ...userSettings.compaction, ...workspaceSettings.compaction },
+			retry: { ...userSettings.retry, ...workspaceSettings.retry },
+			slack: { ...userSettings.slack, ...workspaceSettings.slack },
+			feishu: { ...userSettings.feishu, ...workspaceSettings.feishu },
+		};
 	}
 
 	private save(): void {
@@ -293,5 +320,41 @@ export class MomSettingsManager {
 
 	getHookTimeout(): number {
 		return 30000;
+	}
+
+	getImageAutoResize(): boolean {
+		return true;
+	}
+
+	getShellCommandPrefix(): string | undefined {
+		return undefined;
+	}
+
+	getTheme(): string | undefined {
+		return undefined;
+	}
+
+	getLanguage(): string {
+		return "简体中文";
+	}
+
+	getBranchSummarySettings(): { reserveTokens: number } {
+		return { reserveTokens: 16384 };
+	}
+
+	reload(): void {
+		this.settings = this.load();
+	}
+
+	getPlatform(): "slack" | "feishu" | undefined {
+		return this.settings.platform;
+	}
+
+	getSlackConfig(): { appToken?: string; botToken?: string } {
+		return this.settings.slack ?? {};
+	}
+
+	getFeishuConfig(): { appId?: string; appSecret?: string } {
+		return this.settings.feishu ?? {};
 	}
 }
