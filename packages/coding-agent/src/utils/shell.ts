@@ -7,6 +7,37 @@ import { SettingsManager } from "../core/settings-manager.js";
 let cachedShellConfig: { shell: string; args: string[] } | null = null;
 
 /**
+ * On Windows, find bash.exe by locating git.exe and deriving the Git install root.
+ * Git's directory structure is consistent: <GitRoot>/cmd/git.exe or <GitRoot>/mingw64/bin/git.exe,
+ * and bash.exe is always at <GitRoot>/bin/bash.exe.
+ */
+function findBashViaGit(): string | null {
+	if (process.platform !== "win32") return null;
+
+	try {
+		const result = spawnSync("where", ["git.exe"], { encoding: "utf-8", timeout: 5000 });
+		if (result.status !== 0 || !result.stdout) return null;
+
+		for (const gitPath of result.stdout.trim().split(/\r?\n/)) {
+			if (!gitPath) continue;
+			// Normalize to forward slashes for consistent matching
+			const normalized = gitPath.replace(/\\/g, "/");
+			// Match <GitRoot>/cmd/git.exe or <GitRoot>/mingw64/bin/git.exe
+			const match = normalized.match(/^(.+?)\/(?:cmd|mingw64\/bin)\/git\.exe$/i);
+			if (match) {
+				const bashPath = `${match[1].replace(/\//g, "\\")}\\bin\\bash.exe`;
+				if (existsSync(bashPath)) {
+					return bashPath;
+				}
+			}
+		}
+	} catch {
+		// Ignore errors
+	}
+	return null;
+}
+
+/**
  * Find bash executable on PATH (cross-platform)
  */
 function findBashOnPath(): string | null {
@@ -45,7 +76,7 @@ function findBashOnPath(): string | null {
  * Get shell configuration based on platform.
  * Resolution order:
  * 1. User-specified shellPath in settings.json
- * 2. On Windows: Git Bash in known locations, then bash on PATH
+ * 2. On Windows: Git Bash in known locations, then derived from git.exe on PATH, then bash on PATH
  * 3. On Unix: /bin/bash, then bash on PATH, then fallback to sh
  */
 export function getShellConfig(): { shell: string; args: string[] } {
@@ -86,7 +117,14 @@ export function getShellConfig(): { shell: string; args: string[] } {
 			}
 		}
 
-		// 3. Fallback: search bash.exe on PATH (Cygwin, MSYS2, WSL, etc.)
+		// 3. Derive bash.exe from git.exe location on PATH
+		const bashViaGit = findBashViaGit();
+		if (bashViaGit) {
+			cachedShellConfig = { shell: bashViaGit, args: ["-c"] };
+			return cachedShellConfig;
+		}
+
+		// 4. Fallback: search bash.exe on PATH (Cygwin, MSYS2, WSL, etc.)
 		const bashOnPath = findBashOnPath();
 		if (bashOnPath) {
 			cachedShellConfig = { shell: bashOnPath, args: ["-c"] };
