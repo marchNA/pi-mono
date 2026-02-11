@@ -7,6 +7,9 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 ### Added
 - `/commit <message>` slash command for quick git add + commit + push in pi interactive mode
 
+### Fixed
+- Feishu bot system prompt no longer says "Slack bot assistant"; now uses platform-aware prompt with correct formatting rules (Markdown for Feishu, mrkdwn for Slack)
+
 ## 2026-02-11
 
 ### Added

@@ -148,6 +148,7 @@ function buildSystemPrompt(
 	users: UserInfo[],
 	skills: Skill[],
 	language?: string,
+	platform: "slack" | "feishu" = "slack",
 ): string {
 	const channelPath = `${workspacePath}/${channelId}`;
 	const isDocker = sandboxConfig.type === "docker";
@@ -169,23 +170,37 @@ function buildSystemPrompt(
 - Bash working directory: ${process.cwd()}
 - Be careful with system modifications`;
 
-	return `You are mom, a Slack bot assistant. Be concise. No emojis.
+	const platformName = platform === "feishu" ? "Feishu" : "Slack";
+
+	const formattingSection =
+		platform === "feishu"
+			? `## Feishu Formatting (Markdown)
+Bold: **text**, Italic: *text*, Code: \`code\`, Block: \`\`\`code\`\`\`, Links: [text](url)
+Use standard Markdown formatting.`
+			: `## Slack Formatting (mrkdwn, NOT Markdown)
+Bold: *text*, Italic: _text_, Code: \`code\`, Block: \`\`\`code\`\`\`, Links: <url|text>
+Do NOT use **double asterisks** or [markdown](links).`;
+
+	const mentionFormat =
+		platform === "feishu"
+			? "When mentioning users, use @username format."
+			: "When mentioning users, use <@username> format (e.g., <@mario>).";
+
+	return `You are mom, a ${platformName} bot assistant. Be concise. No emojis.
 
 ## Context
 - For current date/time, use: date
 - You have access to previous conversation context including tool results from prior turns.
 - For older history beyond your context, search log.jsonl (contains user messages and your final responses, but not tool results).
 
-## Slack Formatting (mrkdwn, NOT Markdown)
-Bold: *text*, Italic: _text_, Code: \`code\`, Block: \`\`\`code\`\`\`, Links: <url|text>
-Do NOT use **double asterisks** or [markdown](links).
+${formattingSection}
 
-## Slack IDs
+## ${platformName} IDs
 Channels: ${channelMappings}
 
 Users: ${userMappings}
 
-When mentioning users, use <@username> format (e.g., <@mario>).
+${mentionFormat}
 
 ## Environment
 ${envDescription}
@@ -277,7 +292,7 @@ You receive a message like:
 Immediate and one-shot events auto-delete after triggering. Periodic events persist until you delete them.
 
 ### Silent Completion
-For periodic events where there's nothing to report, respond with just \`[SILENT]\` (no other text). This deletes the status message and posts nothing to Slack. Use this to avoid spamming the channel when periodic checks find nothing actionable.
+For periodic events where there's nothing to report, respond with just \`[SILENT]\` (no other text). This deletes the status message and posts nothing to the channel. Use this to avoid spamming the channel when periodic checks find nothing actionable.
 
 ### Debouncing
 When writing programs that create immediate events (email watchers, webhook handlers, etc.), always debounce. If 50 emails arrive in a minute, don't create 50 immediate events. Instead collect events over a window and create ONE immediate event summarizing what happened, or just signal "new activity, check inbox" rather than per-item events. Or simpler: use a periodic event to check for new items every N minutes instead of immediate events.
@@ -324,7 +339,7 @@ grep '"userName":"mario"' log.jsonl | tail -20 | jq -c '{date: .date[0:19], text
 - read: Read files
 - write: Create/overwrite files
 - edit: Surgical file edits
-- attach: Share files to Slack
+- attach: Share files to the channel
 
 Each tool requires a "label" parameter (shown to user).
 ${language ? `\n\nIMPORTANT: You MUST respond in ${language}. All your text output, explanations, and comments should be in ${language}. Code, file paths, tool calls, and technical identifiers remain in their original language.` : ""}
@@ -398,11 +413,16 @@ const channelRunners = new Map<string, AgentRunner>();
  * Get or create an AgentRunner for a channel.
  * Runners are cached - one per channel, persistent across messages.
  */
-export function getOrCreateRunner(sandboxConfig: SandboxConfig, channelId: string, channelDir: string): AgentRunner {
+export function getOrCreateRunner(
+	sandboxConfig: SandboxConfig,
+	channelId: string,
+	channelDir: string,
+	platform: "slack" | "feishu" = "slack",
+): AgentRunner {
 	const existing = channelRunners.get(channelId);
 	if (existing) return existing;
 
-	const runner = createRunner(sandboxConfig, channelId, channelDir);
+	const runner = createRunner(sandboxConfig, channelId, channelDir, platform);
 	channelRunners.set(channelId, runner);
 	return runner;
 }
@@ -411,7 +431,12 @@ export function getOrCreateRunner(sandboxConfig: SandboxConfig, channelId: strin
  * Create a new AgentRunner for a channel.
  * Sets up the session and subscribes to events once.
  */
-function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDir: string): AgentRunner {
+function createRunner(
+	sandboxConfig: SandboxConfig,
+	channelId: string,
+	channelDir: string,
+	platform: "slack" | "feishu" = "slack",
+): AgentRunner {
 	const executor = createExecutor(sandboxConfig);
 	const workspacePath = executor.getWorkspacePath(channelDir.replace(`/${channelId}`, ""));
 
@@ -429,7 +454,17 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 	const settingsManager = new MomSettingsManager(join(channelDir, ".."));
 
 	const language = settingsManager.getLanguage();
-	const systemPrompt = buildSystemPrompt(workspacePath, channelId, memory, sandboxConfig, [], [], skills, language);
+	const systemPrompt = buildSystemPrompt(
+		workspacePath,
+		channelId,
+		memory,
+		sandboxConfig,
+		[],
+		[],
+		skills,
+		language,
+		platform,
+	);
 
 	// Create AuthStorage and ModelRegistry
 	// Auth stored outside workspace so agent can't access it
@@ -688,6 +723,7 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 				ctx.users,
 				skills,
 				language,
+				platform,
 			);
 			session.agent.setSystemPrompt(systemPrompt);
 

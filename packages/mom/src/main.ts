@@ -365,13 +365,13 @@ interface ChannelState {
 
 const channelStates = new Map<string, ChannelState>();
 
-function getState(channelId: string, botToken?: string): ChannelState {
+function getState(channelId: string, botToken?: string, platform: "slack" | "feishu" = "slack"): ChannelState {
 	let state = channelStates.get(channelId);
 	if (!state) {
 		const channelDir = join(workingDir, channelId);
 		state = {
 			running: false,
-			runner: getOrCreateRunner(sandbox, channelId, channelDir),
+			runner: getOrCreateRunner(sandbox, channelId, channelDir, platform),
 			store: new ChannelStore({ workingDir, botToken: botToken || "" }),
 			stopRequested: false,
 		};
@@ -744,7 +744,7 @@ async function startFeishu(): Promise<void> {
 		},
 
 		async handleEvent(event: FeishuEvent, bot: FeishuBot, isEvent?: boolean): Promise<void> {
-			const state = getState(event.channel);
+			const state = getState(event.channel, undefined, "feishu");
 
 			state.running = true;
 			state.stopRequested = false;
