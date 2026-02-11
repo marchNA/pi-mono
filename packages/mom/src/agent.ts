@@ -640,8 +640,6 @@ function createRunner(
 
 				for (const thinking of thinkingParts) {
 					log.logThinking(logCtx, thinking);
-					queue.enqueueMessage(`_${thinking}_`, "main", "thinking main");
-					queue.enqueueMessage(`_${thinking}_`, "thread", "thinking thread", false);
 				}
 
 				if (text.trim()) {
