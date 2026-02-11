@@ -228,6 +228,8 @@ export function createFindTool(cwd: string, options?: FindToolOptions): AgentToo
 								relativePath += "/";
 							}
 
+							// Normalize to forward slashes for consistent cross-platform output
+							relativePath = relativePath.replaceAll("\\", "/");
 							relativized.push(relativePath);
 						}
 

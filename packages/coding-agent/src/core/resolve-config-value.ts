@@ -4,9 +4,14 @@
  */
 
 import { execSync } from "child_process";
+import { platform } from "os";
 
 // Cache for shell command results (persists for process lifetime)
 const commandResultCache = new Map<string, string | undefined>();
+
+// On Windows, execSync defaults to cmd.exe which doesn't handle POSIX shell syntax
+// (single quotes, pipes, etc.). Use sh (available via Git for Windows) instead.
+const shellOption: string | undefined = platform() === "win32" ? "sh" : undefined;
 
 /**
  * Resolve a config value (API key, header value, etc.) to an actual value.
@@ -33,6 +38,7 @@ function executeCommand(commandConfig: string): string | undefined {
 			encoding: "utf-8",
 			timeout: 10000,
 			stdio: ["ignore", "pipe", "ignore"],
+			...(shellOption && { shell: shellOption }),
 		});
 		result = output.trim() || undefined;
 	} catch {

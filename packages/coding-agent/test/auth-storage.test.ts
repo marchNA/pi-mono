@@ -1,11 +1,16 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { registerOAuthProvider } from "@mariozechner/pi-ai";
 import lockfile from "proper-lockfile";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { AuthStorage } from "../src/core/auth-storage.js";
 import { clearConfigValueCache } from "../src/core/resolve-config-value.js";
+
+/** Convert a path to POSIX format for use in sh commands (needed on Windows). */
+function toPosix(p: string): string {
+	return p.split(sep).join("/");
+}
 
 describe("AuthStorage", () => {
 	let tempDir: string;
@@ -161,7 +166,8 @@ describe("AuthStorage", () => {
 				const counterFile = join(tempDir, "counter");
 				writeFileSync(counterFile, "0");
 
-				const command = `!sh -c 'count=$(cat ${counterFile}); echo $((count + 1)) > ${counterFile}; echo "key-value"'`;
+				const posixCounter = toPosix(counterFile);
+				const command = `!sh -c 'count=$(cat ${posixCounter}); echo $((count + 1)) > ${posixCounter}; echo "key-value"'`;
 				writeAuthJson({
 					anthropic: { type: "api_key", key: command },
 				});
@@ -182,7 +188,8 @@ describe("AuthStorage", () => {
 				const counterFile = join(tempDir, "counter");
 				writeFileSync(counterFile, "0");
 
-				const command = `!sh -c 'count=$(cat ${counterFile}); echo $((count + 1)) > ${counterFile}; echo "key-value"'`;
+				const posixCounter = toPosix(counterFile);
+				const command = `!sh -c 'count=$(cat ${posixCounter}); echo $((count + 1)) > ${posixCounter}; echo "key-value"'`;
 				writeAuthJson({
 					anthropic: { type: "api_key", key: command },
 				});
@@ -203,7 +210,8 @@ describe("AuthStorage", () => {
 				const counterFile = join(tempDir, "counter");
 				writeFileSync(counterFile, "0");
 
-				const command = `!sh -c 'count=$(cat ${counterFile}); echo $((count + 1)) > ${counterFile}; echo "key-value"'`;
+				const posixCounter = toPosix(counterFile);
+				const command = `!sh -c 'count=$(cat ${posixCounter}); echo $((count + 1)) > ${posixCounter}; echo "key-value"'`;
 				writeAuthJson({
 					anthropic: { type: "api_key", key: command },
 				});
@@ -239,7 +247,8 @@ describe("AuthStorage", () => {
 				const counterFile = join(tempDir, "counter");
 				writeFileSync(counterFile, "0");
 
-				const command = `!sh -c 'count=$(cat ${counterFile}); echo $((count + 1)) > ${counterFile}; exit 1'`;
+				const posixCounter = toPosix(counterFile);
+				const command = `!sh -c 'count=$(cat ${posixCounter}); echo $((count + 1)) > ${posixCounter}; exit 1'`;
 				writeAuthJson({
 					anthropic: { type: "api_key", key: command },
 				});

@@ -635,6 +635,7 @@ export class AgentSession {
 			customPrompt: loaderSystemPrompt,
 			appendSystemPrompt,
 			selectedTools: validToolNames,
+			language: this.settingsManager.getLanguage(),
 		});
 	}
 

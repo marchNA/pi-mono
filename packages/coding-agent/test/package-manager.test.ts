@@ -1,16 +1,23 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DefaultPackageManager, type ProgressEvent, type ResolvedResource } from "../src/core/package-manager.js";
 import { SettingsManager } from "../src/core/settings-manager.js";
 
+/** Normalize path separators to forward slashes for cross-platform matching. */
+const norm = (p: string) => p.split(sep).join("/");
+
 // Helper to check if a resource is enabled
 const isEnabled = (r: ResolvedResource, pathMatch: string, matchFn: "endsWith" | "includes" = "endsWith") =>
-	matchFn === "endsWith" ? r.path.endsWith(pathMatch) && r.enabled : r.path.includes(pathMatch) && r.enabled;
+	matchFn === "endsWith"
+		? norm(r.path).endsWith(pathMatch) && r.enabled
+		: norm(r.path).includes(pathMatch) && r.enabled;
 
 const isDisabled = (r: ResolvedResource, pathMatch: string, matchFn: "endsWith" | "includes" = "endsWith") =>
-	matchFn === "endsWith" ? r.path.endsWith(pathMatch) && !r.enabled : r.path.includes(pathMatch) && !r.enabled;
+	matchFn === "endsWith"
+		? norm(r.path).endsWith(pathMatch) && !r.enabled
+		: norm(r.path).includes(pathMatch) && !r.enabled;
 
 describe("DefaultPackageManager", () => {
 	let tempDir: string;
@@ -143,7 +150,7 @@ Content`,
 			);
 
 			// Should NOT find helper.ts (not declared in manifest)
-			expect(result.extensions.some((r) => r.path.endsWith("helper.ts"))).toBe(false);
+			expect(result.extensions.some((r) => norm(r.path).endsWith("helper.ts"))).toBe(false);
 		});
 	});
 
@@ -164,8 +171,8 @@ Content`,
 			settingsManager.setSkillPaths(["skills"]);
 
 			const result = await packageManager.resolve();
-			expect(result.skills.some((r) => r.path.includes("good-skill") && r.enabled)).toBe(true);
-			expect(result.skills.some((r) => r.path.includes("venv") && r.enabled)).toBe(false);
+			expect(result.skills.some((r) => norm(r.path).includes("good-skill") && r.enabled)).toBe(true);
+			expect(result.skills.some((r) => norm(r.path).includes("venv") && r.enabled)).toBe(false);
 		});
 
 		it("should not apply parent .gitignore to .pi auto-discovery", async () => {
@@ -227,8 +234,8 @@ Content`,
 			writeFileSync(join(pkgDir, "themes", "dark.json"), "{}");
 
 			const result = await packageManager.resolveExtensionSources([pkgDir]);
-			expect(result.extensions.some((r) => r.path.endsWith("main.ts") && r.enabled)).toBe(true);
-			expect(result.themes.some((r) => r.path.endsWith("dark.json") && r.enabled)).toBe(true);
+			expect(result.extensions.some((r) => norm(r.path).endsWith("main.ts") && r.enabled)).toBe(true);
+			expect(result.themes.some((r) => norm(r.path).endsWith("dark.json") && r.enabled)).toBe(true);
 		});
 	});
 
@@ -546,7 +553,7 @@ Content`,
 			const result = await packageManager.resolveExtensionSources([pkgDir]);
 			expect(result.extensions.some((r) => isEnabled(r, "local.ts"))).toBe(true);
 			expect(result.extensions.some((r) => isEnabled(r, "remote.ts"))).toBe(true);
-			expect(result.extensions.some((r) => r.path.endsWith("skip.ts"))).toBe(false);
+			expect(result.extensions.some((r) => norm(r.path).endsWith("skip.ts"))).toBe(false);
 		});
 
 		it("should support glob patterns in manifest skills", async () => {
@@ -573,7 +580,7 @@ Content`,
 
 			const result = await packageManager.resolveExtensionSources([pkgDir]);
 			expect(result.skills.some((r) => isEnabled(r, "good-skill", "includes"))).toBe(true);
-			expect(result.skills.some((r) => r.path.includes("bad-skill"))).toBe(false);
+			expect(result.skills.some((r) => norm(r.path).includes("bad-skill"))).toBe(false);
 		});
 	});
 
@@ -613,7 +620,7 @@ Content`,
 			// bar.ts should be excluded (by user)
 			expect(result.extensions.some((r) => isDisabled(r, "bar.ts"))).toBe(true);
 			// baz.ts should be excluded (by manifest)
-			expect(result.extensions.some((r) => r.path.endsWith("baz.ts"))).toBe(false);
+			expect(result.extensions.some((r) => norm(r.path).endsWith("baz.ts"))).toBe(false);
 		});
 
 		it("should exclude extensions from package with ! pattern", async () => {
@@ -891,7 +898,7 @@ Content`,
 
 			const result = await packageManager.resolve();
 			// Should only appear once (deduped), with project scope
-			const sharedPaths = result.extensions.filter((r) => r.path.includes("shared-pkg"));
+			const sharedPaths = result.extensions.filter((r) => norm(r.path).includes("shared-pkg"));
 			expect(sharedPaths.length).toBe(1);
 			expect(sharedPaths[0].metadata.scope).toBe("project");
 		});
@@ -908,8 +915,8 @@ Content`,
 			settingsManager.setProjectPackages([pkg2Dir]); // project
 
 			const result = await packageManager.resolve();
-			expect(result.extensions.some((r) => r.path.includes("pkg1"))).toBe(true);
-			expect(result.extensions.some((r) => r.path.includes("pkg2"))).toBe(true);
+			expect(result.extensions.some((r) => norm(r.path).includes("pkg1"))).toBe(true);
+			expect(result.extensions.some((r) => norm(r.path).includes("pkg2"))).toBe(true);
 		});
 
 		it("should dedupe SSH and HTTPS URLs for same repo", async () => {
@@ -1009,11 +1016,11 @@ export default function(api) { api.registerTool({ name: "test", description: "te
 			const result = await packageManager.resolveExtensionSources([pkgDir]);
 
 			// Should find the index.ts and standalone.ts
-			expect(result.extensions.some((r) => r.path.endsWith("subagent/index.ts") && r.enabled)).toBe(true);
-			expect(result.extensions.some((r) => r.path.endsWith("standalone.ts") && r.enabled)).toBe(true);
+			expect(result.extensions.some((r) => norm(r.path).endsWith("subagent/index.ts") && r.enabled)).toBe(true);
+			expect(result.extensions.some((r) => norm(r.path).endsWith("standalone.ts") && r.enabled)).toBe(true);
 
 			// Should NOT find agents.ts as a standalone extension
-			expect(result.extensions.some((r) => r.path.endsWith("agents.ts"))).toBe(false);
+			expect(result.extensions.some((r) => norm(r.path).endsWith("agents.ts"))).toBe(false);
 		});
 
 		it("should respect package.json pi.extensions manifest in subdirectories", async () => {
@@ -1035,10 +1042,10 @@ export default function(api) { api.registerTool({ name: "test", description: "te
 			const result = await packageManager.resolveExtensionSources([pkgDir]);
 
 			// Should find main.ts declared in manifest
-			expect(result.extensions.some((r) => r.path.endsWith("custom/main.ts") && r.enabled)).toBe(true);
+			expect(result.extensions.some((r) => norm(r.path).endsWith("custom/main.ts") && r.enabled)).toBe(true);
 
 			// Should NOT find utils.ts (not declared in manifest)
-			expect(result.extensions.some((r) => r.path.endsWith("utils.ts"))).toBe(false);
+			expect(result.extensions.some((r) => norm(r.path).endsWith("utils.ts"))).toBe(false);
 		});
 
 		it("should handle mixed top-level files and subdirectories", async () => {
@@ -1059,12 +1066,12 @@ export default function(api) { api.registerTool({ name: "test", description: "te
 			const result = await packageManager.resolveExtensionSources([pkgDir]);
 
 			// Should find simple.ts and complex/index.ts
-			expect(result.extensions.some((r) => r.path.endsWith("simple.ts") && r.enabled)).toBe(true);
-			expect(result.extensions.some((r) => r.path.endsWith("complex/index.ts") && r.enabled)).toBe(true);
+			expect(result.extensions.some((r) => norm(r.path).endsWith("simple.ts") && r.enabled)).toBe(true);
+			expect(result.extensions.some((r) => norm(r.path).endsWith("complex/index.ts") && r.enabled)).toBe(true);
 
 			// Should NOT find helper modules
-			expect(result.extensions.some((r) => r.path.endsWith("complex/a.ts"))).toBe(false);
-			expect(result.extensions.some((r) => r.path.endsWith("complex/b.ts"))).toBe(false);
+			expect(result.extensions.some((r) => norm(r.path).endsWith("complex/a.ts"))).toBe(false);
+			expect(result.extensions.some((r) => norm(r.path).endsWith("complex/b.ts"))).toBe(false);
 
 			// Total should be exactly 2
 			expect(result.extensions.filter((r) => r.enabled).length).toBe(2);
@@ -1084,7 +1091,7 @@ export default function(api) { api.registerTool({ name: "test", description: "te
 			const result = await packageManager.resolveExtensionSources([pkgDir]);
 
 			// Should only find the valid top-level extension
-			expect(result.extensions.some((r) => r.path.endsWith("valid.ts") && r.enabled)).toBe(true);
+			expect(result.extensions.some((r) => norm(r.path).endsWith("valid.ts") && r.enabled)).toBe(true);
 			expect(result.extensions.filter((r) => r.enabled).length).toBe(1);
 		});
 	});

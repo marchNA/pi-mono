@@ -469,19 +469,23 @@ function collectResourceFiles(dir: string, resourceType: ResourceType): string[]
 }
 
 function matchesAnyPattern(filePath: string, patterns: string[], baseDir: string): boolean {
-	const rel = relative(baseDir, filePath);
+	const rel = toPosixPath(relative(baseDir, filePath));
 	const name = basename(filePath);
 	const isSkillFile = name === "SKILL.md";
 	const parentDir = isSkillFile ? dirname(filePath) : undefined;
-	const parentRel = isSkillFile ? relative(baseDir, parentDir!) : undefined;
+	const parentRel = isSkillFile ? toPosixPath(relative(baseDir, parentDir!)) : undefined;
 	const parentName = isSkillFile ? basename(parentDir!) : undefined;
 
 	return patterns.some((pattern) => {
-		if (minimatch(rel, pattern) || minimatch(name, pattern) || minimatch(filePath, pattern)) {
+		if (minimatch(rel, pattern) || minimatch(name, pattern) || minimatch(toPosixPath(filePath), pattern)) {
 			return true;
 		}
 		if (!isSkillFile) return false;
-		return minimatch(parentRel!, pattern) || minimatch(parentName!, pattern) || minimatch(parentDir!, pattern);
+		return (
+			minimatch(parentRel!, pattern) ||
+			minimatch(parentName!, pattern) ||
+			minimatch(toPosixPath(parentDir!), pattern)
+		);
 	});
 }
 
@@ -494,19 +498,19 @@ function normalizeExactPattern(pattern: string): string {
 
 function matchesAnyExactPattern(filePath: string, patterns: string[], baseDir: string): boolean {
 	if (patterns.length === 0) return false;
-	const rel = relative(baseDir, filePath);
+	const rel = toPosixPath(relative(baseDir, filePath));
 	const name = basename(filePath);
 	const isSkillFile = name === "SKILL.md";
 	const parentDir = isSkillFile ? dirname(filePath) : undefined;
-	const parentRel = isSkillFile ? relative(baseDir, parentDir!) : undefined;
+	const parentRel = isSkillFile ? toPosixPath(relative(baseDir, parentDir!)) : undefined;
 
 	return patterns.some((pattern) => {
 		const normalized = normalizeExactPattern(pattern);
-		if (normalized === rel || normalized === filePath) {
+		if (normalized === rel || normalized === toPosixPath(filePath)) {
 			return true;
 		}
 		if (!isSkillFile) return false;
-		return normalized === parentRel || normalized === parentDir;
+		return normalized === parentRel || normalized === toPosixPath(parentDir!);
 	});
 }
 

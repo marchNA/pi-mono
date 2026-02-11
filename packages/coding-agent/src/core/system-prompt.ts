@@ -29,6 +29,8 @@ export interface BuildSystemPromptOptions {
 	contextFiles?: Array<{ path: string; content: string }>;
 	/** Pre-loaded skills. */
 	skills?: Skill[];
+	/** Language for LLM responses. */
+	language?: string;
 }
 
 /** Build the system prompt with tools, guidelines, and context */
@@ -40,6 +42,7 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions = {}): strin
 		cwd,
 		contextFiles: providedContextFiles,
 		skills: providedSkills,
+		language,
 	} = options;
 	const resolvedCwd = cwd ?? process.cwd();
 
@@ -85,6 +88,10 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions = {}): strin
 		// Add date/time and working directory last
 		prompt += `\nCurrent date and time: ${dateTime}`;
 		prompt += `\nCurrent working directory: ${resolvedCwd}`;
+
+		if (language) {
+			prompt += `\n\nIMPORTANT: You MUST respond in ${language}. All your text output, explanations, and comments should be in ${language}. Code, file paths, tool calls, and technical identifiers remain in their original language.`;
+		}
 
 		return prompt;
 	}
@@ -183,6 +190,10 @@ Pi documentation (read only when the user asks about pi itself, its SDK, extensi
 	// Add date/time and working directory last
 	prompt += `\nCurrent date and time: ${dateTime}`;
 	prompt += `\nCurrent working directory: ${resolvedCwd}`;
+
+	if (language) {
+		prompt += `\n\nIMPORTANT: You MUST respond in ${language}. All your text output, explanations, and comments should be in ${language}. Code, file paths, tool calls, and technical identifiers remain in their original language.`;
+	}
 
 	return prompt;
 }

@@ -1,8 +1,11 @@
 import { spawnSync } from "child_process";
 import { readdirSync, statSync } from "fs";
 import { homedir } from "os";
-import { basename, dirname, join } from "path";
+import { basename, dirname, join, sep } from "path";
 import { fuzzyFilter } from "./fuzzy.js";
+
+/** Normalize path separators to forward slashes for consistent cross-platform output. */
+const toPosix = (p: string): string => (sep === "\\" ? p.replaceAll("\\", "/") : p);
 
 const PATH_DELIMITERS = new Set([" ", "\t", '"', "'", "="]);
 
@@ -102,6 +105,8 @@ function walkDirectoryWithFd(
 		"d",
 		"--full-path",
 		"--hidden",
+		"--path-separator",
+		"/",
 		"--exclude",
 		".git",
 		"--exclude",
@@ -112,7 +117,10 @@ function walkDirectoryWithFd(
 
 	// Add query as pattern if provided
 	if (query) {
-		args.push(query);
+		// On Windows, fd matches against native backslash paths even with --path-separator /
+		// Convert forward slashes in the query to escaped backslashes for regex matching
+		const fdQuery = process.platform === "win32" ? query.replaceAll("/", "\\\\") : query;
+		args.push(fdQuery);
 	}
 
 	const result = spawnSync(fdPath, args, {
@@ -128,7 +136,9 @@ function walkDirectoryWithFd(
 	const lines = result.stdout.trim().split("\n").filter(Boolean);
 	const results: Array<{ path: string; isDirectory: boolean }> = [];
 
-	for (const line of lines) {
+	for (const rawLine of lines) {
+		// Normalize to forward slashes for consistent cross-platform behavior
+		const line = rawLine.replaceAll("\\", "/");
 		const normalizedPath = line.endsWith("/") ? line.slice(0, -1) : line;
 		if (normalizedPath === ".git" || normalizedPath.startsWith(".git/") || normalizedPath.includes("/.git/")) {
 			continue;
@@ -528,7 +538,7 @@ export class CombinedAutocompleteProvider implements AutocompleteProvider {
 					if (displayPrefix.startsWith("~/")) {
 						const homeRelativeDir = displayPrefix.slice(2); // Remove ~/
 						const dir = dirname(homeRelativeDir);
-						relativePath = `~/${dir === "." ? name : join(dir, name)}`;
+						relativePath = `~/${dir === "." ? name : toPosix(join(dir, name))}`;
 					} else if (displayPrefix.startsWith("/")) {
 						// Absolute path - construct properly
 						const dir = dirname(displayPrefix);
@@ -538,7 +548,7 @@ export class CombinedAutocompleteProvider implements AutocompleteProvider {
 							relativePath = `${dir}/${name}`;
 						}
 					} else {
-						relativePath = join(dirname(displayPrefix), name);
+						relativePath = toPosix(join(dirname(displayPrefix), name));
 					}
 				} else {
 					// For standalone entries, preserve ~/ if original prefix was ~/

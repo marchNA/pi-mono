@@ -86,6 +86,7 @@ export interface Settings {
 	autocompleteMaxVisible?: number; // Max visible items in autocomplete dropdown (default: 5)
 	showHardwareCursor?: boolean; // Show terminal cursor while still positioning it for IME
 	markdown?: MarkdownSettings;
+	language?: string; // Language for LLM responses (default: "简体中文")
 }
 
 /** Deep merge settings: project/overrides take precedence, nested objects merge recursively */
@@ -747,5 +748,15 @@ export class SettingsManager {
 
 	getCodeBlockIndent(): string {
 		return this.settings.markdown?.codeBlockIndent ?? "  ";
+	}
+
+	getLanguage(): string {
+		return this.settings.language ?? "简体中文";
+	}
+
+	setLanguage(language: string): void {
+		this.globalSettings.language = language;
+		this.markModified("language");
+		this.save();
 	}
 }
