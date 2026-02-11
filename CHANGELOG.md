@@ -4,6 +4,9 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 
 ## [Unreleased]
 
+### Added
+- `/commit <message>` slash command for quick git add + commit + push in pi interactive mode
+
 ## 2026-02-11
 
 ### Added

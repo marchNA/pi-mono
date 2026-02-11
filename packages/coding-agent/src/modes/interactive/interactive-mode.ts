@@ -1950,6 +1950,12 @@ export class InteractiveMode {
 				this.editor.setText("");
 				return;
 			}
+			if (text === "/commit" || text.startsWith("/commit ")) {
+				const commitMessage = text.startsWith("/commit ") ? text.slice(8).trim() : undefined;
+				this.editor.setText("");
+				await this.handleCommitCommand(commitMessage);
+				return;
+			}
 			if (text === "/quit") {
 				this.editor.setText("");
 				await this.shutdown();
@@ -3876,6 +3882,94 @@ export class InteractiveMode {
 			if (!loader.signal.aborted) {
 				restoreEditor();
 				this.showError(`Failed to create gist: ${error instanceof Error ? error.message : "Unknown error"}`);
+			}
+		}
+	}
+
+	private async handleCommitCommand(commitMessage: string | undefined): Promise<void> {
+		if (!commitMessage) {
+			this.showError("Usage: /commit <message>");
+			return;
+		}
+
+		// Check for uncommitted changes first
+		const statusResult = spawnSync("git", ["status", "--porcelain"], { encoding: "utf-8" });
+		if (statusResult.status !== 0) {
+			this.showError("Not a git repository or git is not available.");
+			return;
+		}
+		if (!statusResult.stdout.trim()) {
+			this.showStatus("Nothing to commit, working tree clean.");
+			return;
+		}
+
+		// Show loader
+		const loader = new BorderedLoader(this.ui, theme, "Committing and pushing...");
+		this.editorContainer.clear();
+		this.editorContainer.addChild(loader);
+		this.ui.setFocus(loader);
+		this.ui.requestRender();
+
+		const restoreEditor = () => {
+			loader.dispose();
+			this.editorContainer.clear();
+			this.editorContainer.addChild(this.editor);
+			this.ui.setFocus(this.editor);
+		};
+
+		loader.onAbort = () => {
+			restoreEditor();
+			this.showStatus("Commit cancelled");
+		};
+
+		try {
+			// Stage all tracked changes
+			const addResult = spawnSync("git", ["add", "-u"], { encoding: "utf-8" });
+			if (addResult.status !== 0) {
+				restoreEditor();
+				this.showError(`git add failed: ${addResult.stderr?.trim() || "Unknown error"}`);
+				return;
+			}
+
+			// Commit
+			const commitResult = spawnSync("git", ["commit", "-m", commitMessage], { encoding: "utf-8" });
+			if (loader.signal.aborted) return;
+			if (commitResult.status !== 0) {
+				restoreEditor();
+				this.showError(`git commit failed: ${commitResult.stderr?.trim() || "Unknown error"}`);
+				return;
+			}
+
+			// Push
+			const pushResult = await new Promise<{ stdout: string; stderr: string; code: number | null }>((resolve) => {
+				const proc = spawn("git", ["push"]);
+				let stdout = "";
+				let stderr = "";
+				proc.stdout?.on("data", (data) => {
+					stdout += data.toString();
+				});
+				proc.stderr?.on("data", (data) => {
+					stderr += data.toString();
+				});
+				proc.on("close", (code) => resolve({ stdout, stderr, code }));
+			});
+
+			if (loader.signal.aborted) return;
+			restoreEditor();
+
+			if (pushResult.code !== 0) {
+				this.showError(`git push failed: ${pushResult.stderr?.trim() || "Unknown error"}`);
+				return;
+			}
+
+			// Show summary
+			const shortStat = spawnSync("git", ["diff", "--shortstat", "HEAD~1", "HEAD"], { encoding: "utf-8" });
+			const stat = shortStat.stdout?.trim() || "";
+			this.showStatus(`Committed and pushed: ${commitMessage}${stat ? `\n${stat}` : ""}`);
+		} catch (error: unknown) {
+			if (!loader.signal.aborted) {
+				restoreEditor();
+				this.showError(`Commit failed: ${error instanceof Error ? error.message : "Unknown error"}`);
 			}
 		}
 	}
