@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed bash shell detection on Windows when Git is installed in a non-standard location (e.g., `D:\Tools\Git`); now derives `bash.exe` path from `git.exe` on PATH before falling back to direct `bash.exe` search
+
 ## [0.52.9] - 2026-02-08
 
 ### New Features
