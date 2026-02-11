@@ -242,7 +242,16 @@ if (parsedArgs.daemon) {
 	const logFile = getLogFilePath(dir);
 	const logFd = openSync(logFile, "a");
 
-	const child = spawn(process.execPath, [process.argv[1], ...childArgs], {
+	// When running via tsx (e.g., npx tsx main.ts), process.execPath is node.exe
+	// but the entry file is .ts which node can't run directly.
+	// Detect this and use tsx loader for the child process.
+	const entryFile = process.argv[1];
+	const isTsFile = entryFile.endsWith(".ts");
+	const childExecArgs = isTsFile
+		? [process.execPath, "--import", "tsx", entryFile, ...childArgs]
+		: [process.execPath, entryFile, ...childArgs];
+
+	const child = spawn(childExecArgs[0], childExecArgs.slice(1), {
 		detached: true,
 		stdio: ["ignore", logFd, logFd],
 		env: process.env,

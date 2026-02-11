@@ -9,6 +9,7 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 
 ### Fixed
 - Feishu bot system prompt no longer says "Slack bot assistant"; now uses platform-aware prompt with correct formatting rules (Markdown for Feishu, mrkdwn for Slack)
+- Daemon mode now works when running via `npx tsx` (uses `--import tsx` loader for child process instead of bare `node`)
 
 ## 2026-02-11
 
