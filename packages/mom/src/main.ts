@@ -88,7 +88,12 @@ function parseArgs(): ParsedArgs {
 		} else if (arg === "--_daemon-child") {
 			// Internal flag: child process of --daemon, skip daemon fork
 		} else if (!arg.startsWith("-")) {
-			workingDir = arg;
+			// Allow bare "slack" or "feishu" as platform shorthand
+			if (arg === "slack" || arg === "feishu") {
+				platform = arg;
+			} else {
+				workingDir = arg;
+			}
 		}
 	}
 
