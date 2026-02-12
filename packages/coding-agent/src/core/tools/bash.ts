@@ -19,6 +19,12 @@ function getTempFilePath(): string {
 const bashSchema = Type.Object({
 	command: Type.String({ description: "Bash command to execute" }),
 	timeout: Type.Optional(Type.Number({ description: "Timeout in seconds (optional, no default timeout)" })),
+	background: Type.Optional(
+		Type.Boolean({
+			description:
+				"Run in background without capturing output (prevents blocking for long-running processes like browsers)",
+		}),
+	),
 });
 
 export type BashToolInput = Static<typeof bashSchema>;
@@ -48,6 +54,7 @@ export interface BashOperations {
 			signal?: AbortSignal;
 			timeout?: number;
 			env?: NodeJS.ProcessEnv;
+			background?: boolean;
 		},
 	) => Promise<{ exitCode: number | null }>;
 }
@@ -56,7 +63,7 @@ export interface BashOperations {
  * Default bash operations using local shell
  */
 const defaultBashOperations: BashOperations = {
-	exec: (command, cwd, { onData, signal, timeout, env }) => {
+	exec: (command, cwd, { onData, signal, timeout, env, background }) => {
 		return new Promise((resolve, reject) => {
 			const { shell, args } = getShellConfig();
 
@@ -65,12 +72,22 @@ const defaultBashOperations: BashOperations = {
 				return;
 			}
 
+			// Determine stdio configuration based on background mode
+			const stdio: ("ignore" | "pipe")[] = background ? ["ignore", "ignore", "ignore"] : ["ignore", "pipe", "pipe"];
+
 			const child = spawn(shell, [...args, command], {
 				cwd,
 				detached: true,
 				env: env ?? getShellEnv(),
-				stdio: ["ignore", "pipe", "pipe"],
+				stdio: stdio as any,
 			});
+
+			// Background mode: immediately resolve without waiting
+			if (background) {
+				child.unref();
+				resolve({ exitCode: null });
+				return;
+			}
 
 			let timedOut = false;
 
@@ -175,13 +192,28 @@ export function createBashTool(cwd: string, options?: BashToolOptions): AgentToo
 		parameters: bashSchema,
 		execute: async (
 			_toolCallId: string,
-			{ command, timeout }: { command: string; timeout?: number },
+			{ command, timeout, background }: { command: string; timeout?: number; background?: boolean },
 			signal?: AbortSignal,
 			onUpdate?,
 		) => {
 			// Apply command prefix if configured (e.g., "shopt -s expand_aliases" for alias support)
 			const resolvedCommand = commandPrefix ? `${commandPrefix}\n${command}` : command;
 			const spawnContext = resolveSpawnContext(resolvedCommand, cwd, spawnHook);
+
+			// Background mode: run without capturing output and return immediately
+			if (background) {
+				await ops.exec(spawnContext.command, spawnContext.cwd, {
+					onData: () => {}, // No-op
+					signal,
+					timeout,
+					env: spawnContext.env,
+					background: true,
+				});
+				return {
+					content: [{ type: "text" as const, text: "Command started in background" }],
+					details: undefined,
+				};
+			}
 
 			return new Promise((resolve, reject) => {
 				// We'll stream to a temp file if output gets large
@@ -243,6 +275,7 @@ export function createBashTool(cwd: string, options?: BashToolOptions): AgentToo
 					signal,
 					timeout,
 					env: spawnContext.env,
+					background,
 				})
 					.then(({ exitCode }) => {
 						// Close temp file stream
