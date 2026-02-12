@@ -5,6 +5,7 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 ## [2026-02-12]
 
 ### Added
+- Notes extension enabled for project: copied `notes.ts` to `.pi/extensions/` for persistent agent memory across context compaction and sessions
 - `/commit <message>` slash command for quick git add + commit + push in pi interactive mode
 - Feishu bot image support: download and forward user-sent images to the LLM model
 - Feishu bot rich text (post) message support: extract text and inline images
