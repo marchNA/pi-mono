@@ -6,6 +6,7 @@
 
 - Added per-model visibility editing in `/model` selector: from the provider editor, press Enter to drill into a provider's model list and toggle individual models with Space
 - Added `notes` extension example with persistent agent memory: task-scoped notes that survive context compaction, cross-session resume via project-level storage (`.pi/notes/`), soft budget hints for context-aware note management, and `/notes` command for TUI viewing
+- Added `context-pruning` extension example: automatically replaces old tool result contents with short summaries in the LLM context, reducing context bloat while preserving session data
 
 ### Fixed
 
