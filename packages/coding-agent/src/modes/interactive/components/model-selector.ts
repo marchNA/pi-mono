@@ -28,8 +28,8 @@ interface ScopedModelItem {
 
 type ModelScope = "all" | "scoped";
 
-/** Internal mode: "select" for model picking, "edit-providers" for visibility toggles */
-type SelectorMode = "select" | "edit-providers";
+/** Internal mode: "select" for model picking, "edit-providers" for provider toggles, "edit-models" for per-model toggles */
+type SelectorMode = "select" | "edit-providers" | "edit-models";
 
 /**
  * Component that renders a model selector with search
@@ -66,11 +66,16 @@ export class ModelSelectorComponent extends Container implements Focusable {
 	private scopeText?: Text;
 	private scopeHintText?: Text;
 
-	// Provider visibility editor state
+	// Provider/model visibility editor state
 	private selectorMode: SelectorMode = "select";
 	private allProviderNames: string[] = [];
 	private providerCursor = 0;
 	private providerHidden: Set<string> = new Set();
+	// Per-model editor state
+	private editingProvider = "";
+	private editingModels: Array<{ provider: string; id: string }> = [];
+	private modelEditorCursor = 0;
+	private modelHidden: Set<string> = new Set(); // "provider/modelId" format
 
 	constructor(
 		tui: TUI,
@@ -158,14 +163,18 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			this.errorMessage = loadError;
 		}
 
-		// Load hidden providers from settings
+		// Load hidden providers and models from settings
 		const hiddenProviders = new Set(this.settingsManager.getHiddenProviders());
+		const hiddenModels = new Set(this.settingsManager.getHiddenModels());
 
 		// Load available models (built-in models still work even if models.json failed)
 		try {
 			const availableModels = await this.modelRegistry.getAvailable();
 			models = availableModels
-				.filter((model: Model<any>) => !hiddenProviders.has(model.provider))
+				.filter(
+					(model: Model<any>) =>
+						!hiddenProviders.has(model.provider) && !hiddenModels.has(`${model.provider}/${model.id}`),
+				)
 				.map((model: Model<any>) => ({
 					provider: model.provider,
 					id: model.id,
@@ -183,7 +192,11 @@ export class ModelSelectorComponent extends Container implements Focusable {
 		this.allModels = this.sortModels(models);
 		this.scopedModelItems = this.sortModels(
 			this.scopedModels
-				.filter((scoped) => !hiddenProviders.has(scoped.model.provider))
+				.filter(
+					(scoped) =>
+						!hiddenProviders.has(scoped.model.provider) &&
+						!hiddenModels.has(`${scoped.model.provider}/${scoped.model.id}`),
+				)
 				.map((scoped) => ({
 					provider: scoped.model.provider,
 					id: scoped.model.id,
@@ -406,7 +419,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
 		this.listContainer.addChild(new Spacer(1));
 		this.listContainer.addChild(
 			new Text(
-				`(Space: toggle, ${keyHint("selectConfirm", "to save,")} ${keyHint("selectCancel", "to cancel")})`,
+				`(Space: toggle, ${keyHint("selectConfirm", "to edit models,")} ${keyHint("selectCancel", "to save & go back")})`,
 				0,
 				0,
 			),
@@ -417,6 +430,15 @@ export class ModelSelectorComponent extends Container implements Focusable {
 
 	private saveProviderVisibility(): void {
 		this.settingsManager.setHiddenProviders([...this.providerHidden]);
+	}
+
+	private saveModelVisibility(): void {
+		this.settingsManager.setHiddenModels([...this.modelHidden]);
+	}
+
+	private exitEditProvidersMode(): void {
+		this.saveProviderVisibility();
+		this.saveModelVisibility();
 		this.selectorMode = "select";
 		this.onEditAction = false;
 		this.selectedIndex = 0;
@@ -428,12 +450,78 @@ export class ModelSelectorComponent extends Container implements Focusable {
 	}
 
 	// =========================================================================
+	// Per-model visibility editor
+	// =========================================================================
+
+	private enterEditModelsMode(provider: string): void {
+		this.selectorMode = "edit-models";
+		this.editingProvider = provider;
+
+		// Collect all models for this provider (with auth)
+		const allModels = this.modelRegistry.getAll();
+		this.editingModels = allModels
+			.filter((m) => m.provider === provider && this.modelRegistry.authStorage.hasAuth(m.provider))
+			.map((m) => ({ provider: m.provider, id: m.id }));
+
+		this.modelHidden = new Set(this.settingsManager.getHiddenModels());
+		this.modelEditorCursor = 0;
+		this.renderModelEditor();
+	}
+
+	private renderModelEditor(): void {
+		this.listContainer.clear();
+
+		this.listContainer.addChild(new Text(theme.fg("warning", `Edit visible models: ${this.editingProvider}`), 0, 0));
+		this.listContainer.addChild(new Text(theme.fg("dim", "Toggle which models appear in the model list"), 0, 0));
+		this.listContainer.addChild(new Spacer(1));
+
+		const maxVisible = 15;
+		const startIdx = Math.max(
+			0,
+			Math.min(this.modelEditorCursor - Math.floor(maxVisible / 2), this.editingModels.length - maxVisible),
+		);
+		const endIdx = Math.min(startIdx + maxVisible, this.editingModels.length);
+
+		for (let i = startIdx; i < endIdx; i++) {
+			const model = this.editingModels[i];
+			if (!model) continue;
+			const key = `${model.provider}/${model.id}`;
+			const isHidden = this.modelHidden.has(key);
+			const isCursor = i === this.modelEditorCursor;
+			const checkbox = isHidden ? "[ ]" : "[x]";
+
+			let line: string;
+			if (isCursor) {
+				line = theme.fg("accent", `→ ${checkbox} ${model.id}`);
+			} else {
+				line = `  ${checkbox} ${model.id}`;
+			}
+			this.listContainer.addChild(new Text(line, 0, 0));
+		}
+
+		if (startIdx > 0 || endIdx < this.editingModels.length) {
+			this.listContainer.addChild(
+				new Text(theme.fg("muted", `  (${this.modelEditorCursor + 1}/${this.editingModels.length})`), 0, 0),
+			);
+		}
+
+		this.listContainer.addChild(new Spacer(1));
+		this.listContainer.addChild(new Text(`(Space: toggle, ${keyHint("selectCancel", "to go back")})`, 0, 0));
+
+		this.tui.requestRender();
+	}
+
+	// =========================================================================
 	// Input handling
 	// =========================================================================
 
 	handleInput(keyData: string): void {
 		if (this.selectorMode === "edit-providers") {
 			this.handleProviderEditorInput(keyData);
+			return;
+		}
+		if (this.selectorMode === "edit-models") {
+			this.handleModelEditorInput(keyData);
 			return;
 		}
 
@@ -526,12 +614,44 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			}
 			this.renderProviderEditor();
 		} else if (kb.matches(keyData, "selectConfirm")) {
-			this.saveProviderVisibility();
+			// Enter: drill into per-model editor for this provider
+			const name = this.allProviderNames[this.providerCursor];
+			if (name) {
+				// Save provider visibility first so model list reflects current state
+				this.saveProviderVisibility();
+				this.enterEditModelsMode(name);
+			}
 		} else if (kb.matches(keyData, "selectCancel")) {
-			// Cancel: go back to model list without saving
-			this.selectorMode = "select";
-			this.updateList();
-			this.tui.requestRender();
+			// Escape: save and go back to model list
+			this.exitEditProvidersMode();
+		}
+	}
+
+	private handleModelEditorInput(keyData: string): void {
+		const kb = getEditorKeybindings();
+
+		if (kb.matches(keyData, "selectUp")) {
+			this.modelEditorCursor = Math.max(0, this.modelEditorCursor - 1);
+			this.renderModelEditor();
+		} else if (kb.matches(keyData, "selectDown")) {
+			this.modelEditorCursor = Math.min(this.editingModels.length - 1, this.modelEditorCursor + 1);
+			this.renderModelEditor();
+		} else if (keyData === " ") {
+			const model = this.editingModels[this.modelEditorCursor];
+			if (model) {
+				const key = `${model.provider}/${model.id}`;
+				if (this.modelHidden.has(key)) {
+					this.modelHidden.delete(key);
+				} else {
+					this.modelHidden.add(key);
+				}
+			}
+			this.renderModelEditor();
+		} else if (kb.matches(keyData, "selectCancel")) {
+			// Escape: save model visibility and go back to provider editor
+			this.saveModelVisibility();
+			this.selectorMode = "edit-providers";
+			this.renderProviderEditor();
 		}
 	}
 

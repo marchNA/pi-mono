@@ -85,6 +85,7 @@ export interface Settings {
 	editorPaddingX?: number; // Horizontal padding for input editor (default: 0)
 	autocompleteMaxVisible?: number; // Max visible items in autocomplete dropdown (default: 5)
 	hiddenProviders?: string[]; // Provider names hidden from /model selector
+	hiddenModels?: string[]; // Model IDs hidden from /model selector (format: "provider/modelId")
 	showHardwareCursor?: boolean; // Show terminal cursor while still positioning it for IME
 	markdown?: MarkdownSettings;
 	language?: string; // Language for LLM responses (default: "简体中文")
@@ -754,6 +755,16 @@ export class SettingsManager {
 	setHiddenProviders(providers: string[]): void {
 		this.globalSettings.hiddenProviders = providers;
 		this.markModified("hiddenProviders");
+		this.save();
+	}
+
+	getHiddenModels(): string[] {
+		return this.settings.hiddenModels ?? [];
+	}
+
+	setHiddenModels(models: string[]): void {
+		this.globalSettings.hiddenModels = models;
+		this.markModified("hiddenModels");
 		this.save();
 	}
 

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added per-model visibility editing in `/model` selector: from the provider editor, press Enter to drill into a provider's model list and toggle individual models with Space
+
 ### Fixed
 
 - Fixed bash shell detection on Windows when Git is installed in a non-standard location (e.g., `D:\Tools\Git`); now derives `bash.exe` path from `git.exe` on PATH before falling back to direct `bash.exe` search
