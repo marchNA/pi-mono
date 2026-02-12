@@ -6,6 +6,23 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 
 ### Added
 - `/commit <message>` slash command for quick git add + commit + push in pi interactive mode
+- Feishu bot image support: download and forward user-sent images to the LLM model
+- Feishu bot rich text (post) message support: extract text and inline images
+- `/login` now supports custom OpenAI-compatible providers via API key: interactive flow to configure provider name, API URL, API key, and select models from remote `/models` endpoint; saves to `models.json` + `auth.json`
+- `/model` selector now groups models by provider (hierarchical view)
+- `/model` selector has "Edit visible providers" option at the bottom to hide/show providers via checkbox toggles; persisted to `settings.json` as `hiddenProviders`
+- Per-model visibility editing in `/model` selector: from the provider editor, press Enter to drill into a provider's model list and toggle individual models with Space
+- Standalone Antigravity quota checker script (`scripts/antigravity-quota.ts`): two modes — local API (queries running Antigravity language server) and Google Cloud Code API (OAuth login, works without Antigravity); auto-detect mode tries local first, falls back to cloud
+- `/model-quota` slash command: shows Antigravity model quota usage with progress bars and reset times directly in the chat UI
+- Automatic model fallback on quota exhaustion: when retries are exhausted, automatically switches to a fallback model and retries (default: `claude-opus-4-6-thinking` → `gemini-3-pro-high`); automatically switches back to the original model when quota resets (based on reset time extracted from error); configurable via `modelFallbacks` in `settings.json`
+- Bash tool `background` mode: new optional `background: true` parameter for running long-lived processes (browsers, dev servers, etc.) without blocking; uses `stdio: ["ignore", "ignore", "ignore"]` + `child.unref()` to fully detach child processes
+
+### Fixed
+- Fixed bash shell detection on Windows when Git is installed in a non-standard location (e.g., `D:\Tools\Git`); now derives `bash.exe` path from `git.exe` on PATH before falling back to direct `bash.exe` search
+
+### Changed
+- Z.AI provider baseUrl corrected to `https://open.bigmodel.cn/api/coding/paas/v4`
+- Z.AI default model updated from `glm-4.6` to `glm-4.7`
 
 ### Fixed
 - Feishu bot system prompt no longer says "Slack bot assistant"; now uses platform-aware prompt with correct formatting rules (Markdown for Feishu, mrkdwn for Slack)
