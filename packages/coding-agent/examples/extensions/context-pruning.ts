@@ -17,7 +17,7 @@
  * - The notes tool is never pruned (it's the agent's persistent memory)
  */
 
-import type { ImageContent, TextContent } from "@mariozechner/pi-ai";
+import type { ImageContent, TextContent, ToolCall } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 // ============================================================================
@@ -37,6 +37,31 @@ const NEVER_PRUNE_TOOLS = new Set(["notes"]);
 const SUMMARY_HINT_CHARS = 120;
 
 // ============================================================================
+// Tool Call Argument Extraction
+// ============================================================================
+
+/**
+ * Build a map from toolCallId to the tool call's input arguments.
+ * This lets us extract path, command, etc. from the assistant's tool_call
+ * content rather than from the tool result's details (which may not have them).
+ */
+function buildToolCallArgsMap(messages: unknown[]): Map<string, Record<string, unknown>> {
+	const map = new Map<string, Record<string, unknown>>();
+	for (const msg of messages) {
+		const m = msg as { role?: string; content?: unknown[] };
+		if (m.role !== "assistant" || !Array.isArray(m.content)) continue;
+		for (const content of m.content) {
+			const c = content as { type?: string };
+			if (c.type === "toolCall") {
+				const tc = content as ToolCall;
+				map.set(tc.id, tc.arguments);
+			}
+		}
+	}
+	return map;
+}
+
+// ============================================================================
 // Summarization
 // ============================================================================
 
@@ -51,9 +76,10 @@ interface ToolResultLike {
 }
 
 /**
- * Create a short summary for a tool result based on tool name and content.
+ * Create a short summary for a tool result based on tool name,
+ * the tool call's input arguments, and the result content.
  */
-function summarizeToolResult(msg: ToolResultLike): string {
+function summarizeToolResult(msg: ToolResultLike, args: Record<string, unknown> | undefined): string {
 	const textParts = msg.content.filter((c): c is TextContent => c.type === "text");
 	const imageCount = msg.content.filter((c) => c.type === "image").length;
 	const fullText = textParts.map((t) => t.text).join("\n");
@@ -62,28 +88,29 @@ function summarizeToolResult(msg: ToolResultLike): string {
 
 	switch (msg.toolName) {
 		case "read": {
-			// Extract file path from details or content
-			const details = msg.details as Record<string, unknown> | undefined;
-			const filePath = details?.path ?? details?.filePath ?? "";
+			const filePath = args?.path ?? "";
 			const lineCount = (fullText.match(/\n/g) || []).length + 1;
 			summary = `[Pruned] Read ${filePath} (${lineCount} lines)`;
+			if (imageCount > 0) {
+				summary += ` [${imageCount} image(s)]`;
+			}
 			break;
 		}
 		case "bash": {
-			const details = msg.details as Record<string, unknown> | undefined;
-			const command = details?.command ?? "";
-			const exitCode = details?.exitCode ?? details?.code;
-			const commandStr = typeof command === "string" ? command : "";
-			const truncCmd = commandStr.length > 80 ? `${commandStr.substring(0, 80)}...` : commandStr;
+			const command = typeof args?.command === "string" ? args.command : "";
+			const truncCmd = command.length > 80 ? `${command.substring(0, 80)}...` : command;
+			// Try to extract exit code from output text
+			const exitMatch = fullText.match(/exit(?:ed with)?\s*(?:code\s*)?(\d+)/i);
 			summary = `[Pruned] Bash: \`${truncCmd}\``;
-			if (exitCode !== undefined && exitCode !== 0) {
-				summary += ` (exit ${exitCode})`;
+			if (msg.isError) {
+				summary += exitMatch ? ` (exit ${exitMatch[1]})` : " (error)";
+			} else if (exitMatch && exitMatch[1] !== "0") {
+				summary += ` (exit ${exitMatch[1]})`;
 			}
 			break;
 		}
 		case "edit": {
-			const details = msg.details as Record<string, unknown> | undefined;
-			const filePath = details?.path ?? "";
+			const filePath = args?.path ?? "";
 			if (msg.isError) {
 				summary = `[Pruned] Edit ${filePath} — FAILED`;
 			} else {
@@ -92,31 +119,8 @@ function summarizeToolResult(msg: ToolResultLike): string {
 			break;
 		}
 		case "write": {
-			const details = msg.details as Record<string, unknown> | undefined;
-			const filePath = details?.path ?? "";
+			const filePath = args?.path ?? "";
 			summary = `[Pruned] Write ${filePath}`;
-			break;
-		}
-		case "grep": {
-			const details = msg.details as Record<string, unknown> | undefined;
-			const pattern = details?.pattern ?? "";
-			const matchCount = details?.matchCount ?? details?.matches;
-			summary = `[Pruned] Grep "${pattern}"`;
-			if (matchCount !== undefined) {
-				summary += ` (${matchCount} matches)`;
-			}
-			break;
-		}
-		case "find": {
-			const details = msg.details as Record<string, unknown> | undefined;
-			const pattern = details?.pattern ?? details?.glob ?? "";
-			summary = `[Pruned] Find "${pattern}"`;
-			break;
-		}
-		case "ls": {
-			const details = msg.details as Record<string, unknown> | undefined;
-			const dirPath = details?.path ?? "";
-			summary = `[Pruned] ls ${dirPath}`;
 			break;
 		}
 		default: {
@@ -127,15 +131,14 @@ function summarizeToolResult(msg: ToolResultLike): string {
 				summary += `: ${hint}`;
 				if (fullText.length > SUMMARY_HINT_CHARS) summary += "...";
 			}
+			if (imageCount > 0) {
+				summary += ` [${imageCount} image(s)]`;
+			}
 			break;
 		}
 	}
 
-	if (imageCount > 0) {
-		summary += ` [${imageCount} image(s)]`;
-	}
-
-	if (msg.isError && !summary.includes("FAILED")) {
+	if (msg.isError && !summary.includes("FAILED") && !summary.includes("error")) {
 		summary += " [error]";
 	}
 
@@ -149,6 +152,9 @@ function summarizeToolResult(msg: ToolResultLike): string {
 export default function (pi: ExtensionAPI) {
 	pi.on("context", async (event) => {
 		const messages = event.messages;
+
+		// Build toolCallId -> arguments map from assistant messages
+		const argsMap = buildToolCallArgsMap(messages);
 
 		// Collect indices of all toolResult messages, from end to start
 		const toolResultIndices: number[] = [];
@@ -187,7 +193,8 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			// Prune: replace content with summary
-			const summary = summarizeToolResult(msg);
+			const args = argsMap.get(msg.toolCallId);
+			const summary = summarizeToolResult(msg, args);
 			msg.content = [{ type: "text", text: summary }];
 			// Clear details to save tokens (details can be large)
 			msg.details = undefined;
