@@ -25,6 +25,8 @@ export interface BashExecutorOptions {
 	onChunk?: (chunk: string) => void;
 	/** AbortSignal for cancellation */
 	signal?: AbortSignal;
+	/** Run command in background without capturing output (prevents blocking for long-running processes) */
+	background?: boolean;
 }
 
 export interface BashResult {
@@ -53,19 +55,40 @@ export interface BashResult {
  * - Supports cancellation via AbortSignal
  * - Sanitizes output (strips ANSI, removes binary garbage, normalizes newlines)
  * - Truncates output if it exceeds the default max bytes
+ * - Background mode: runs process without capturing output (prevents blocking)
  *
  * @param command - The bash command to execute
- * @param options - Optional streaming callback and abort signal
+ * @param options - Optional streaming callback, abort signal, and background mode
  * @returns Promise resolving to execution result
  */
 export function executeBash(command: string, options?: BashExecutorOptions): Promise<BashResult> {
 	return new Promise((resolve, reject) => {
 		const { shell, args } = getShellConfig();
+
+		// Determine stdio configuration based on background mode
+		// Background mode: redirect all stdio to /dev/null to prevent blocking on long-running processes
+		// Foreground mode: capture stdout/stderr via pipes for output collection
+		const stdio: ("ignore" | "pipe")[] = options?.background
+			? ["ignore", "ignore", "ignore"]
+			: ["ignore", "pipe", "pipe"];
+
 		const child: ChildProcess = spawn(shell, [...args, command], {
 			detached: true,
 			env: getShellEnv(),
-			stdio: ["ignore", "pipe", "pipe"],
+			stdio: stdio as any,
 		});
+
+		// Background mode: immediately resolve without waiting for process to finish
+		if (options?.background) {
+			child.unref(); // Allow parent process to exit independently
+			resolve({
+				output: "",
+				exitCode: undefined,
+				cancelled: false,
+				truncated: false,
+			});
+			return;
+		}
 
 		// Track sanitized output for truncation
 		const outputChunks: string[] = [];
