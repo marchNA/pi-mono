@@ -1,4 +1,6 @@
 // UI Components for extensions
+
+export { ApiKeyLoginComponent } from "./apikey-login.js";
 export { ArminComponent } from "./armin.js";
 export { AssistantMessageComponent } from "./assistant-message.js";
 export { BashExecutionComponent } from "./bash-execution.js";
@@ -17,7 +19,7 @@ export { FooterComponent } from "./footer.js";
 export { appKey, appKeyHint, editorKey, keyHint, rawKeyHint } from "./keybinding-hints.js";
 export { LoginDialogComponent } from "./login-dialog.js";
 export { ModelSelectorComponent } from "./model-selector.js";
-export { OAuthSelectorComponent } from "./oauth-selector.js";
+export { CUSTOM_APIKEY_PROVIDER_ID, OAuthSelectorComponent } from "./oauth-selector.js";
 export { type ModelsCallbacks, type ModelsConfig, ScopedModelsSelectorComponent } from "./scoped-models-selector.js";
 export { SessionSelectorComponent } from "./session-selector.js";
 export { type SettingsCallbacks, type SettingsConfig, SettingsSelectorComponent } from "./settings-selector.js";

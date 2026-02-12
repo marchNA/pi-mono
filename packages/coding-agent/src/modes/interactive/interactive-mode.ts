@@ -72,6 +72,7 @@ import { getChangelogPath, getNewEntries, parseChangelog } from "../../utils/cha
 import { copyToClipboard } from "../../utils/clipboard.js";
 import { extensionForImageMimeType, readClipboardImage } from "../../utils/clipboard-image.js";
 import { ensureTool } from "../../utils/tools-manager.js";
+import { ApiKeyLoginComponent } from "./components/apikey-login.js";
 import { ArminComponent } from "./components/armin.js";
 import { AssistantMessageComponent } from "./components/assistant-message.js";
 import { BashExecutionComponent } from "./components/bash-execution.js";
@@ -89,7 +90,7 @@ import { FooterComponent } from "./components/footer.js";
 import { appKey, appKeyHint, editorKey, keyHint, rawKeyHint } from "./components/keybinding-hints.js";
 import { LoginDialogComponent } from "./components/login-dialog.js";
 import { ModelSelectorComponent } from "./components/model-selector.js";
-import { OAuthSelectorComponent } from "./components/oauth-selector.js";
+import { CUSTOM_APIKEY_PROVIDER_ID, OAuthSelectorComponent } from "./components/oauth-selector.js";
 import { ScopedModelsSelectorComponent } from "./components/scoped-models-selector.js";
 import { SessionSelectorComponent } from "./components/session-selector.js";
 import { SettingsSelectorComponent } from "./components/settings-selector.js";
@@ -3591,7 +3592,11 @@ export class InteractiveMode {
 					done();
 
 					if (mode === "login") {
-						await this.showLoginDialog(providerId);
+						if (providerId === CUSTOM_APIKEY_PROVIDER_ID) {
+							await this.showApiKeyLogin();
+						} else {
+							await this.showLoginDialog(providerId);
+						}
 					} else {
 						// Logout flow
 						const providerInfo = getOAuthProviders().find((p) => p.id === providerId);
@@ -3703,6 +3708,36 @@ export class InteractiveMode {
 				this.showError(`Failed to login to ${providerName}: ${errorMsg}`);
 			}
 		}
+	}
+
+	private async showApiKeyLogin(): Promise<void> {
+		return new Promise<void>((resolve) => {
+			const component = new ApiKeyLoginComponent(
+				this.ui,
+				this.session.modelRegistry,
+				this.session.modelRegistry.authStorage,
+				async (success, message) => {
+					// Restore editor
+					this.editorContainer.clear();
+					this.editorContainer.addChild(this.editor);
+					this.ui.setFocus(this.editor);
+					this.ui.requestRender();
+
+					if (success) {
+						await this.updateAvailableProviderCount();
+						this.showStatus(message || "Custom provider configured");
+					} else if (message && message !== "Cancelled") {
+						this.showError(message);
+					}
+					resolve();
+				},
+			);
+
+			this.editorContainer.clear();
+			this.editorContainer.addChild(component);
+			this.ui.setFocus(component);
+			this.ui.requestRender();
+		});
 	}
 
 	// =========================================================================
