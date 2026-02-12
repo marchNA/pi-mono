@@ -2,7 +2,7 @@
 
 This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diverging from the upstream `badlogic/pi-mono`.
 
-## [Unreleased]
+## [2026-02-12]
 
 ### Added
 - `/commit <message>` slash command for quick git add + commit + push in pi interactive mode
