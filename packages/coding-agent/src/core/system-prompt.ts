@@ -145,6 +145,13 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions = {}): strin
 		);
 	}
 
+	// Background mode guideline
+	if (hasBash) {
+		guidelinesList.push(
+			"IMPORTANT: Any command starting with 'agent-browser' MUST use background: true — it launches a persistent browser session that never exits. Also use background: true for other long-lived processes (dev servers, watchers, etc.) that do not terminate on their own.",
+		);
+	}
+
 	// Always include these
 	guidelinesList.push("Be concise in your responses");
 	guidelinesList.push("Show file paths clearly when working with files");

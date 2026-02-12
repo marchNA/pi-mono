@@ -188,7 +188,7 @@ export function createBashTool(cwd: string, options?: BashToolOptions): AgentToo
 	return {
 		name: "bash",
 		label: "bash",
-		description: `Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
+		description: `Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds. For long-running processes (agent-browser, dev servers, watchers), you MUST set background: true to avoid blocking.`,
 		parameters: bashSchema,
 		execute: async (
 			_toolCallId: string,
@@ -200,8 +200,12 @@ export function createBashTool(cwd: string, options?: BashToolOptions): AgentToo
 			const resolvedCommand = commandPrefix ? `${commandPrefix}\n${command}` : command;
 			const spawnContext = resolveSpawnContext(resolvedCommand, cwd, spawnHook);
 
+			// Auto-detect commands that must run in background to avoid blocking
+			const autoBackgroundPatterns = [/\bagent-browser\b/];
+			const shouldBackground = background || autoBackgroundPatterns.some((p) => p.test(command));
+
 			// Background mode: run without capturing output and return immediately
-			if (background) {
+			if (shouldBackground) {
 				await ops.exec(spawnContext.command, spawnContext.cwd, {
 					onData: () => {}, // No-op
 					signal,
