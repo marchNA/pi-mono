@@ -1435,6 +1435,11 @@ export class AgentSession {
 					extensionCompaction = result.compaction;
 					fromExtension = true;
 				}
+
+				// Allow extensions to override custom instructions for the summarizer
+				if (result?.customInstructions !== undefined) {
+					customInstructions = result.customInstructions;
+				}
 			}
 
 			let summary: string;

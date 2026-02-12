@@ -486,6 +486,37 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_tree", async (_event, ctx) => reconstructState(ctx));
 
 	// ========================================================================
+	// Inject notes into compaction as custom instructions
+	// ========================================================================
+
+	pi.on("session_before_compact", async (event) => {
+		if (notesState.sections.length === 0) return;
+
+		const notesContext: string[] = [];
+		notesContext.push("The agent has persistent notes that should inform the compaction summary.");
+		notesContext.push("Prioritize preserving information relevant to these notes and their task.");
+		notesContext.push("Do NOT repeat the notes content verbatim — they persist separately.");
+		notesContext.push("");
+
+		if (notesState.task) {
+			notesContext.push(`Current task: ${notesState.task}`);
+		}
+
+		for (const section of notesState.sections) {
+			if (section.entries.length === 0) continue;
+			notesContext.push(`Notes section "${section.name}":`);
+			for (const entry of section.entries) {
+				notesContext.push(`  - ${entry.text.split("\n")[0]}`);
+			}
+		}
+
+		const existing = event.customInstructions ?? "";
+		const combined = existing ? `${existing}\n\n${notesContext.join("\n")}` : notesContext.join("\n");
+
+		return { customInstructions: combined };
+	});
+
+	// ========================================================================
 	// Save notes to project-level storage on shutdown
 	// ========================================================================
 
