@@ -11,6 +11,10 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 - `/login` now supports custom OpenAI-compatible providers via API key: interactive flow to configure provider name, API URL, API key, and select models from remote `/models` endpoint; saves to `models.json` + `auth.json`
 - `/model` selector now groups models by provider (hierarchical view)
 - `/model` selector has "Edit visible providers" option at the bottom to hide/show providers via checkbox toggles; persisted to `settings.json` as `hiddenProviders`
+- Per-model visibility editing in `/model` selector: from the provider editor, press Enter to drill into a provider's model list and toggle individual models with Space
+
+### Fixed
+- Fixed bash shell detection on Windows when Git is installed in a non-standard location (e.g., `D:\Tools\Git`); now derives `bash.exe` path from `git.exe` on PATH before falling back to direct `bash.exe` search
 
 ### Changed
 - Z.AI provider baseUrl corrected to `https://open.bigmodel.cn/api/coding/paas/v4`
