@@ -13,6 +13,7 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 - `/model` selector has "Edit visible providers" option at the bottom to hide/show providers via checkbox toggles; persisted to `settings.json` as `hiddenProviders`
 - Per-model visibility editing in `/model` selector: from the provider editor, press Enter to drill into a provider's model list and toggle individual models with Space
 - Standalone Antigravity quota checker script (`scripts/antigravity-quota.ts`): two modes — local API (queries running Antigravity language server) and Google Cloud Code API (OAuth login, works without Antigravity); auto-detect mode tries local first, falls back to cloud
+- `/model-quota` slash command: shows Antigravity model quota usage with progress bars and reset times directly in the chat UI
 
 ### Fixed
 - Fixed bash shell detection on Windows when Git is installed in a non-standard location (e.g., `D:\Tools\Git`); now derives `bash.exe` path from `git.exe` on PATH before falling back to direct `bash.exe` search

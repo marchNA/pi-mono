@@ -15,6 +15,7 @@ import {
 	type Message,
 	type Model,
 	type OAuthProvider,
+	refreshAntigravityToken,
 } from "@mariozechner/pi-ai";
 import type {
 	AutocompleteItem,
@@ -1955,6 +1956,11 @@ export class InteractiveMode {
 				const commitMessage = text.startsWith("/commit ") ? text.slice(8).trim() : undefined;
 				this.editor.setText("");
 				await this.handleCommitCommand(commitMessage);
+				return;
+			}
+			if (text === "/model-quota") {
+				this.editor.setText("");
+				await this.handleModelQuotaCommand();
 				return;
 			}
 			if (text === "/quit") {
@@ -4236,6 +4242,189 @@ export class InteractiveMode {
 		this.chatContainer.addChild(new Markdown(hotkeys.trim(), 1, 1, this.getMarkdownThemeWithSettings()));
 		this.chatContainer.addChild(new DynamicBorder());
 		this.ui.requestRender();
+	}
+
+	private async handleModelQuotaCommand(): Promise<void> {
+		const ANTIGRAVITY_PROVIDER = "google-antigravity";
+
+		// Check if Antigravity provider is available
+		const cred = this.session.modelRegistry.authStorage.get(ANTIGRAVITY_PROVIDER);
+		if (!cred || cred.type !== "oauth") {
+			this.showError("Antigravity is not logged in. Use /login first.");
+			return;
+		}
+
+		// Show loader
+		const loader = new BorderedLoader(this.ui, theme, "Fetching Antigravity model quotas...");
+		this.editorContainer.clear();
+		this.editorContainer.addChild(loader);
+		this.ui.setFocus(loader);
+		this.ui.requestRender();
+
+		const restoreEditor = () => {
+			loader.dispose();
+			this.editorContainer.clear();
+			this.editorContainer.addChild(this.editor);
+			this.ui.setFocus(this.editor);
+		};
+
+		loader.onAbort = () => {
+			restoreEditor();
+			this.showStatus("Quota check cancelled");
+		};
+
+		try {
+			// Get valid access token (refresh if needed)
+			let accessToken = cred.access;
+			const projectId = (cred as Record<string, unknown>).projectId as string | undefined;
+
+			if (Date.now() > cred.expires) {
+				const refreshed = await refreshAntigravityToken(cred.refresh, projectId || "");
+				accessToken = refreshed.access;
+				// Update stored credentials
+				this.session.modelRegistry.authStorage.set(ANTIGRAVITY_PROVIDER, {
+					type: "oauth",
+					...refreshed,
+				});
+			}
+
+			if (loader.signal.aborted) return;
+
+			// Try Cloud Code API endpoints
+			const baseUrls = [
+				"https://daily-cloudcode-pa.googleapis.com",
+				"https://cloudcode-pa.googleapis.com",
+				"https://daily-cloudcode-pa.sandbox.googleapis.com",
+			];
+
+			// Step 1: Get project info if needed
+			let resolvedProjectId = projectId;
+			if (!resolvedProjectId) {
+				for (const baseUrl of baseUrls) {
+					try {
+						const resp = await fetch(`${baseUrl}/v1internal:loadCodeAssist`, {
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+								Authorization: `Bearer ${accessToken}`,
+								"User-Agent": "antigravity",
+							},
+							body: JSON.stringify({ metadata: { ideType: "ANTIGRAVITY" } }),
+						});
+						if (resp.ok) {
+							const data = (await resp.json()) as { cloudaicompanionProject?: string };
+							resolvedProjectId = data.cloudaicompanionProject;
+							break;
+						}
+					} catch {
+						// try next
+					}
+				}
+			}
+
+			if (loader.signal.aborted) return;
+
+			// Step 2: Fetch model quotas
+			let modelsMap: Record<string, { quotaInfo?: { remainingFraction?: number; resetTime?: string } }> | null =
+				null;
+			for (const baseUrl of baseUrls) {
+				try {
+					const resp = await fetch(`${baseUrl}/v1internal:fetchAvailableModels`, {
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							Authorization: `Bearer ${accessToken}`,
+							"User-Agent": "antigravity",
+						},
+						body: JSON.stringify(resolvedProjectId ? { project: resolvedProjectId } : {}),
+					});
+					if (resp.ok) {
+						const data = (await resp.json()) as { models?: typeof modelsMap };
+						modelsMap = data.models || {};
+						break;
+					}
+					if (resp.status === 401) {
+						restoreEditor();
+						this.showError("Antigravity token expired. Use /login to re-authenticate.");
+						return;
+					}
+				} catch {
+					// try next
+				}
+			}
+
+			if (loader.signal.aborted) return;
+
+			if (!modelsMap) {
+				restoreEditor();
+				this.showError("Failed to fetch model quotas from all Cloud Code endpoints.");
+				return;
+			}
+
+			// Build display
+			const allowedPattern = /gemini|claude|gpt/i;
+			const lines: string[] = [];
+			lines.push("**Antigravity Model Quota**\n");
+
+			interface QuotaEntry {
+				name: string;
+				percent: number;
+				exhausted: boolean;
+				resetLabel: string;
+			}
+			const entries: QuotaEntry[] = [];
+
+			for (const [name, info] of Object.entries(modelsMap)) {
+				if (!allowedPattern.test(name)) continue;
+				const qi = info.quotaInfo;
+				const remaining = qi?.remainingFraction ?? 0;
+				const resetTime = qi?.resetTime ? new Date(qi.resetTime) : null;
+				const hoursLeft = resetTime ? Math.max(0, (resetTime.getTime() - Date.now()) / 3600000) : 0;
+				const h = Math.floor(hoursLeft);
+				const m = Math.floor((hoursLeft - h) * 60);
+				const resetLabel = resetTime ? `${h}h${m}m` : "N/A";
+
+				// Format display name
+				const displayName = name
+					.replace(/(\d+)-(\d+)/g, "$1.$2")
+					.split("-")
+					.map((p) => (/^\d/.test(p) ? p : p.charAt(0).toUpperCase() + p.slice(1)))
+					.join(" ");
+
+				entries.push({
+					name: displayName,
+					percent: remaining * 100,
+					exhausted: remaining <= 0,
+					resetLabel,
+				});
+			}
+
+			// Sort: exhausted last, then by name
+			entries.sort((a, b) => {
+				if (a.exhausted !== b.exhausted) return a.exhausted ? 1 : -1;
+				return a.name.localeCompare(b.name);
+			});
+
+			for (const e of entries) {
+				const pct = e.percent.toFixed(0);
+				const filled = Math.round(e.percent / 5);
+				const bar = "█".repeat(filled) + "░".repeat(20 - filled);
+				const status = e.exhausted ? " ❌" : "";
+				lines.push(`\`${bar}\` **${pct}%**${status} ${e.name} *(reset: ${e.resetLabel})*`);
+			}
+
+			if (entries.length === 0) {
+				lines.push("No models found.");
+			}
+
+			restoreEditor();
+			this.chatContainer.addChild(new Spacer(1));
+			this.chatContainer.addChild(new Markdown(lines.join("\n"), 1, 1, this.getMarkdownThemeWithSettings()));
+			this.ui.requestRender();
+		} catch (error) {
+			restoreEditor();
+			this.showError(`Quota fetch failed: ${error instanceof Error ? error.message : String(error)}`);
+		}
 	}
 
 	private async handleClearCommand(): Promise<void> {
