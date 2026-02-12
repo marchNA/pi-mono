@@ -221,47 +221,73 @@ export class ModelSelectorComponent extends Container implements Focusable {
 	private updateList(): void {
 		this.listContainer.clear();
 
-		const maxVisible = 10;
-		const startIndex = Math.max(
-			0,
-			Math.min(this.selectedIndex - Math.floor(maxVisible / 2), this.filteredModels.length - maxVisible),
-		);
-		const endIndex = Math.min(startIndex + maxVisible, this.filteredModels.length);
+		const maxVisible = 15;
 
-		// Show visible slice of filtered models
-		for (let i = startIndex; i < endIndex; i++) {
-			const item = this.filteredModels[i];
-			if (!item) continue;
-
-			const isSelected = i === this.selectedIndex;
-			const isCurrent = modelsAreEqual(this.currentModel, item.model);
-
-			let line = "";
-			if (isSelected) {
-				const prefix = theme.fg("accent", "→ ");
-				const modelText = `${item.id}`;
-				const providerBadge = theme.fg("muted", `[${item.provider}]`);
-				const checkmark = isCurrent ? theme.fg("success", " ✓") : "";
-				line = `${prefix + theme.fg("accent", modelText)} ${providerBadge}${checkmark}`;
-			} else {
-				const modelText = `  ${item.id}`;
-				const providerBadge = theme.fg("muted", `[${item.provider}]`);
-				const checkmark = isCurrent ? theme.fg("success", " ✓") : "";
-				line = `${modelText} ${providerBadge}${checkmark}`;
-			}
-
-			this.listContainer.addChild(new Text(line, 0, 0));
+		// Group filtered models by provider
+		const groups = new Map<string, ModelItem[]>();
+		for (const item of this.filteredModels) {
+			const list = groups.get(item.provider) ?? [];
+			list.push(item);
+			groups.set(item.provider, list);
 		}
 
-		// Add scroll indicator if needed
-		if (startIndex > 0 || endIndex < this.filteredModels.length) {
+		// Build flat display list with provider headers
+		interface DisplayRow {
+			type: "provider" | "model";
+			text: string;
+			modelIndex?: number; // index in filteredModels
+		}
+		const rows: DisplayRow[] = [];
+		let flatIdx = 0;
+		for (const [provider, items] of groups) {
+			rows.push({ type: "provider", text: provider });
+			for (const item of items) {
+				const isCurrent = modelsAreEqual(this.currentModel, item.model);
+				const isSelected = flatIdx === this.selectedIndex;
+				const checkmark = isCurrent ? theme.fg("success", " ✓") : "";
+
+				let line: string;
+				if (isSelected) {
+					line = `  ${theme.fg("accent", `→ ${item.id}`)}${checkmark}`;
+				} else {
+					line = `    ${item.id}${checkmark}`;
+				}
+				rows.push({ type: "model", text: line, modelIndex: flatIdx });
+				flatIdx++;
+			}
+		}
+
+		// Find the row index of the selected model for scrolling
+		let selectedRowIdx = 0;
+		for (let i = 0; i < rows.length; i++) {
+			if (rows[i]?.modelIndex === this.selectedIndex) {
+				selectedRowIdx = i;
+				break;
+			}
+		}
+
+		// Scroll window
+		const startRow = Math.max(0, Math.min(selectedRowIdx - Math.floor(maxVisible / 2), rows.length - maxVisible));
+		const endRow = Math.min(startRow + maxVisible, rows.length);
+
+		for (let i = startRow; i < endRow; i++) {
+			const row = rows[i];
+			if (!row) continue;
+			if (row.type === "provider") {
+				this.listContainer.addChild(new Text(theme.fg("warning", `▸ ${row.text}`), 0, 0));
+			} else {
+				this.listContainer.addChild(new Text(row.text, 0, 0));
+			}
+		}
+
+		// Scroll indicator
+		if (startRow > 0 || endRow < rows.length) {
 			const scrollInfo = theme.fg("muted", `  (${this.selectedIndex + 1}/${this.filteredModels.length})`);
 			this.listContainer.addChild(new Text(scrollInfo, 0, 0));
 		}
 
-		// Show error message or "no results" if empty
+		// Error / empty / detail
 		if (this.errorMessage) {
-			// Show error in red
 			const errorLines = this.errorMessage.split("\n");
 			for (const line of errorLines) {
 				this.listContainer.addChild(new Text(theme.fg("error", line), 0, 0));
@@ -270,8 +296,10 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			this.listContainer.addChild(new Text(theme.fg("muted", "  No matching models"), 0, 0));
 		} else {
 			const selected = this.filteredModels[this.selectedIndex];
-			this.listContainer.addChild(new Spacer(1));
-			this.listContainer.addChild(new Text(theme.fg("muted", `  Model Name: ${selected.model.name}`), 0, 0));
+			if (selected) {
+				this.listContainer.addChild(new Spacer(1));
+				this.listContainer.addChild(new Text(theme.fg("muted", `  ${selected.model.name}`), 0, 0));
+			}
 		}
 	}
 
