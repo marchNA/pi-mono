@@ -31,7 +31,7 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 
 ### Changed
 - Z.AI provider baseUrl corrected to `https://open.bigmodel.cn/api/coding/paas/v4`
-- Z.AI default model updated from `glm-4.6` to `glm-4.7`
+- Z.AI default model updated from `glm-4.7` to `glm-5`
 
 ## 2026-02-11
 
