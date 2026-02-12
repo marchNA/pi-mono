@@ -12,17 +12,22 @@ interface RemoteModel {
 	owned_by?: string;
 }
 
+interface ExistingProviderConfig {
+	baseUrl?: string;
+	apiKey?: string;
+}
+
 type Step = "provider-name" | "api-url" | "api-key" | "fetching" | "model-list" | "done" | "error";
 
 /**
  * Interactive API key login component.
  * Guides the user through configuring a custom OpenAI-compatible provider:
  *   1. Provider name
- *   2. API base URL
- *   3. API key
+ *   2. API base URL (pre-filled if provider exists in models.json or built-in models)
+ *   3. API key (pre-filled if provider exists in models.json)
  *   4. Fetch model list (connectivity test)
  *   5. Select models to enable
- *   6. Save to models.json + auth.json
+ *   6. Save to models.json
  */
 export class ApiKeyLoginComponent extends Container implements Focusable {
 	private contentContainer: Container;
@@ -76,6 +81,41 @@ export class ApiKeyLoginComponent extends Container implements Focusable {
 		this.onComplete(false, "Cancelled");
 	}
 
+	/**
+	 * Look up existing config for a provider name.
+	 * Checks models.json first, then falls back to built-in model baseUrls.
+	 */
+	private getExistingConfig(providerName: string): ExistingProviderConfig {
+		const result: ExistingProviderConfig = {};
+
+		// 1. Check models.json for existing provider config
+		const modelsPath = getModelsPath();
+		if (existsSync(modelsPath)) {
+			try {
+				const config = JSON.parse(readFileSync(modelsPath, "utf-8")) as {
+					providers?: Record<string, { baseUrl?: string; apiKey?: string }>;
+				};
+				const existing = config.providers?.[providerName];
+				if (existing) {
+					if (existing.baseUrl) result.baseUrl = existing.baseUrl;
+					if (existing.apiKey) result.apiKey = existing.apiKey;
+				}
+			} catch {
+				// Ignore parse errors
+			}
+		}
+
+		// 2. Fall back to built-in model baseUrls if not found in models.json
+		if (!result.baseUrl) {
+			const builtInModel = this.modelRegistry.getAll().find((m) => m.provider === providerName);
+			if (builtInModel) {
+				result.baseUrl = builtInModel.baseUrl;
+			}
+		}
+
+		return result;
+	}
+
 	private showStep(step: Step): void {
 		this.currentStep = step;
 		this.contentContainer.clear();
@@ -98,13 +138,17 @@ export class ApiKeyLoginComponent extends Container implements Focusable {
 				);
 				break;
 
-			case "api-url":
+			case "api-url": {
 				this.contentContainer.addChild(new Text(theme.fg("warning", `Provider: ${this.providerName}`), 1, 0));
 				this.contentContainer.addChild(new Spacer(1));
 				this.contentContainer.addChild(new Text(theme.fg("text", "API base URL:"), 1, 0));
-				this.contentContainer.addChild(
-					new Text(theme.fg("dim", "e.g. https://open.bigmodel.cn/api/coding/paas/v4"), 1, 0),
-				);
+				if (this.apiUrl) {
+					this.contentContainer.addChild(
+						new Text(theme.fg("dim", "Press Enter to use the pre-filled value, or edit it"), 1, 0),
+					);
+				} else {
+					this.contentContainer.addChild(new Text(theme.fg("dim", "e.g. https://api.example.com/v1"), 1, 0));
+				}
 				this.contentContainer.addChild(new Spacer(1));
 				this.input.setValue(this.apiUrl);
 				this.contentContainer.addChild(this.input);
@@ -112,12 +156,18 @@ export class ApiKeyLoginComponent extends Container implements Focusable {
 					new Text(`(${keyHint("selectConfirm", "to continue,")} ${keyHint("selectCancel", "to cancel")})`, 1, 0),
 				);
 				break;
+			}
 
-			case "api-key":
+			case "api-key": {
 				this.contentContainer.addChild(new Text(theme.fg("warning", `Provider: ${this.providerName}`), 1, 0));
 				this.contentContainer.addChild(new Text(theme.fg("dim", `URL: ${this.apiUrl}`), 1, 0));
 				this.contentContainer.addChild(new Spacer(1));
 				this.contentContainer.addChild(new Text(theme.fg("text", "API key:"), 1, 0));
+				if (this.apiKey) {
+					this.contentContainer.addChild(
+						new Text(theme.fg("dim", "Press Enter to use the pre-filled value, or edit it"), 1, 0),
+					);
+				}
 				this.contentContainer.addChild(new Spacer(1));
 				this.input.setValue(this.apiKey);
 				this.contentContainer.addChild(this.input);
@@ -125,6 +175,7 @@ export class ApiKeyLoginComponent extends Container implements Focusable {
 					new Text(`(${keyHint("selectConfirm", "to continue,")} ${keyHint("selectCancel", "to cancel")})`, 1, 0),
 				);
 				break;
+			}
 
 			case "fetching":
 				this.contentContainer.addChild(new Text(theme.fg("warning", `Provider: ${this.providerName}`), 1, 0));
@@ -222,13 +273,19 @@ export class ApiKeyLoginComponent extends Container implements Focusable {
 		switch (this.currentStep) {
 			case "provider-name": {
 				if (!value) return;
-				// Validate: no spaces, lowercase-ish
+				// Validate: no spaces
 				if (/\s/.test(value)) {
 					this.showError("Provider name must not contain spaces");
 					return;
 				}
 				this.providerName = value;
 				this.input.setValue("");
+
+				// Pre-fill URL and key from existing config
+				const existing = this.getExistingConfig(value);
+				if (existing.baseUrl && !this.apiUrl) this.apiUrl = existing.baseUrl;
+				if (existing.apiKey && !this.apiKey) this.apiKey = existing.apiKey;
+
 				this.showStep("api-url");
 				break;
 			}
