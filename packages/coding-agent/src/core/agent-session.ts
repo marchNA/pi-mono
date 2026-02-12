@@ -113,7 +113,8 @@ export type AgentSessionEvent =
 			errorMessage?: string;
 	  }
 	| { type: "auto_retry_start"; attempt: number; maxAttempts: number; delayMs: number; errorMessage: string }
-	| { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string };
+	| { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string }
+	| { type: "model_fallback"; fromModel: string; toModel: string; reason: string };
 
 /** Listener function for agent session events */
 export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
@@ -382,6 +383,10 @@ export class AgentSession {
 			if (this._isRetryableError(msg)) {
 				const didRetry = await this._handleRetryableError(msg);
 				if (didRetry) return; // Retry was initiated, don't proceed to compaction
+
+				// Retry exhausted - try model fallback
+				const didFallback = await this._handleModelFallback(msg);
+				if (didFallback) return;
 			}
 
 			await this._checkCompaction(msg);
@@ -2113,6 +2118,64 @@ export class AgentSession {
 		setTimeout(() => {
 			this.agent.continue().catch(() => {
 				// Retry failed - will be caught by next agent_end
+			});
+		}, 0);
+
+		return true;
+	}
+
+	/**
+	 * Handle model fallback when retries are exhausted.
+	 * Checks settings for a fallback model mapping, switches to it, and retries.
+	 * Default fallback: claude-opus-4-6-thinking -> gemini-3-pro-high
+	 * @returns true if fallback was initiated, false otherwise
+	 */
+	private async _handleModelFallback(message: AssistantMessage): Promise<boolean> {
+		const currentModel = this.model;
+		if (!currentModel) return false;
+
+		// Check user-configured fallbacks, with built-in defaults
+		const defaultFallbacks: Record<string, string> = {
+			"claude-opus-4-6-thinking": "gemini-3-pro-high",
+		};
+		const userFallbacks = this.settingsManager.getModelFallbacks();
+		const allFallbacks = { ...defaultFallbacks, ...userFallbacks };
+
+		const fallbackModelId = allFallbacks[currentModel.id];
+		if (!fallbackModelId) return false;
+
+		// Find the fallback model in registry (getAvailable only returns authenticated models)
+		const available = this._modelRegistry.getAvailable();
+		const fallbackModel = available.find((m) => m.id === fallbackModelId);
+		if (!fallbackModel) return false;
+
+		const reason = message.errorMessage || "quota exhausted";
+
+		// Remove error message from agent state
+		const messages = this.agent.state.messages;
+		if (messages.length > 0 && messages[messages.length - 1].role === "assistant") {
+			this.agent.replaceMessages(messages.slice(0, -1));
+		}
+
+		// Switch model (without persisting as default)
+		this.agent.setModel(fallbackModel);
+		this.sessionManager.appendModelChange(fallbackModel.provider, fallbackModel.id);
+
+		// Re-clamp thinking level for new model's capabilities
+		this.setThinkingLevel(this.thinkingLevel);
+
+		// Emit fallback event for UI
+		this._emit({
+			type: "model_fallback",
+			fromModel: currentModel.id,
+			toModel: fallbackModel.id,
+			reason,
+		});
+
+		// Retry with the fallback model
+		setTimeout(() => {
+			this.agent.continue().catch(() => {
+				// Fallback retry failed - will be caught by next agent_end
 			});
 		}, 0);
 

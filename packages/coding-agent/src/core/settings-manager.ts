@@ -86,6 +86,7 @@ export interface Settings {
 	autocompleteMaxVisible?: number; // Max visible items in autocomplete dropdown (default: 5)
 	hiddenProviders?: string[]; // Provider names hidden from /model selector
 	hiddenModels?: string[]; // Model IDs hidden from /model selector (format: "provider/modelId")
+	modelFallbacks?: Record<string, string>; // Model ID fallback mapping (e.g., "claude-opus-4-6-thinking": "gemini-3-pro-high")
 	showHardwareCursor?: boolean; // Show terminal cursor while still positioning it for IME
 	markdown?: MarkdownSettings;
 	language?: string; // Language for LLM responses (default: "简体中文")
@@ -770,6 +771,16 @@ export class SettingsManager {
 
 	getCodeBlockIndent(): string {
 		return this.settings.markdown?.codeBlockIndent ?? "  ";
+	}
+
+	getModelFallbacks(): Record<string, string> {
+		return this.settings.modelFallbacks ?? {};
+	}
+
+	setModelFallbacks(fallbacks: Record<string, string>): void {
+		this.globalSettings.modelFallbacks = fallbacks;
+		this.markModified("modelFallbacks");
+		this.save();
 	}
 
 	getLanguage(): string {

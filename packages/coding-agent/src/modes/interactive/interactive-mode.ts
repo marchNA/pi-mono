@@ -2313,6 +2313,12 @@ export class InteractiveMode {
 				this.ui.requestRender();
 				break;
 			}
+
+			case "model_fallback": {
+				this.showStatus(`Model fallback: ${event.fromModel} → ${event.toModel} (${event.reason})`);
+				this.footer.invalidate();
+				break;
+			}
 		}
 	}
 
