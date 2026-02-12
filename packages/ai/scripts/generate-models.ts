@@ -386,7 +386,7 @@ async function loadModelsDevData(): Promise<Model<any>[]> {
 				name: m.name || modelId,
 				api: "openai-completions",
 				provider: "zai",
-				baseUrl: "https://api.z.ai/api/coding/paas/v4",
+				baseUrl: "https://open.bigmodel.cn/api/coding/paas/v4",
 				reasoning: m.reasoning === true,
 				input: supportsImage ? ["text", "image"] : ["text"],
 				cost: {

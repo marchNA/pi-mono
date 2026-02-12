@@ -9,6 +9,10 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 - Feishu bot image support: download and forward user-sent images to the LLM model
 - Feishu bot rich text (post) message support: extract text and inline images
 
+### Changed
+- Z.AI provider baseUrl corrected to `https://open.bigmodel.cn/api/coding/paas/v4`
+- Z.AI default model updated from `glm-4.6` to `glm-4.7`
+
 ### Fixed
 - Feishu bot system prompt no longer says "Slack bot assistant"; now uses platform-aware prompt with correct formatting rules (Markdown for Feishu, mrkdwn for Slack)
 - Daemon mode now works when running via `npx tsx` (uses `--import tsx` loader for child process instead of bare `node`)
