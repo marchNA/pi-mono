@@ -113,7 +113,8 @@ export type AgentSessionEvent =
 			errorMessage?: string;
 	  }
 	| { type: "auto_retry_start"; attempt: number; maxAttempts: number; delayMs: number; errorMessage: string }
-	| { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string };
+	| { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string }
+	| { type: "model_fallback"; fromModel: string; toModel: string; reason: string };
 
 /** Listener function for agent session events */
 export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
@@ -233,6 +234,10 @@ export class AgentSession {
 	private _retryAttempt = 0;
 	private _retryPromise: Promise<void> | undefined = undefined;
 	private _retryResolve: (() => void) | undefined = undefined;
+
+	// Model fallback state
+	private _fallbackOriginalModelId: string | undefined = undefined;
+	private _fallbackResetTime: number | undefined = undefined;
 
 	// Bash execution state
 	private _bashAbortController: AbortController | undefined = undefined;
@@ -382,6 +387,10 @@ export class AgentSession {
 			if (this._isRetryableError(msg)) {
 				const didRetry = await this._handleRetryableError(msg);
 				if (didRetry) return; // Retry was initiated, don't proceed to compaction
+
+				// Retry exhausted - try model fallback
+				const didFallback = await this._handleModelFallback(msg);
+				if (didFallback) return;
 			}
 
 			await this._checkCompaction(msg);
@@ -707,6 +716,9 @@ export class AgentSession {
 
 		// Flush any pending bash messages before the new prompt
 		this._flushPendingBashMessages();
+
+		// Try to restore original model if quota has reset
+		this._tryRestoreOriginalModel();
 
 		// Validate model
 		if (!this.model) {
@@ -1423,6 +1435,11 @@ export class AgentSession {
 					extensionCompaction = result.compaction;
 					fromExtension = true;
 				}
+
+				// Allow extensions to override custom instructions for the summarizer
+				if (result?.customInstructions !== undefined) {
+					customInstructions = result.customInstructions;
+				}
 			}
 
 			let summary: string;
@@ -2117,6 +2134,145 @@ export class AgentSession {
 		}, 0);
 
 		return true;
+	}
+
+	/**
+	 * Handle model fallback when retries are exhausted.
+	 * Checks settings for a fallback model mapping, switches to it, and retries.
+	 * Records the original model so it can be restored when quota resets.
+	 * Default fallback: claude-opus-4-6-thinking -> gemini-3-pro-high
+	 * @returns true if fallback was initiated, false otherwise
+	 */
+	private async _handleModelFallback(message: AssistantMessage): Promise<boolean> {
+		const currentModel = this.model;
+		if (!currentModel) return false;
+
+		// Don't fallback if already on a fallback model
+		if (this._fallbackOriginalModelId) return false;
+
+		// Check user-configured fallbacks, with built-in defaults
+		const defaultFallbacks: Record<string, string> = {
+			"claude-opus-4-6-thinking": "gemini-3-pro-high",
+		};
+		const userFallbacks = this.settingsManager.getModelFallbacks();
+		const allFallbacks = { ...defaultFallbacks, ...userFallbacks };
+
+		const fallbackModelId = allFallbacks[currentModel.id];
+		if (!fallbackModelId) return false;
+
+		// Find the fallback model in registry (getAvailable only returns authenticated models)
+		const available = this._modelRegistry.getAvailable();
+		const fallbackModel = available.find((m) => m.id === fallbackModelId);
+		if (!fallbackModel) return false;
+
+		const reason = message.errorMessage || "quota exhausted";
+
+		// Extract reset time from error message for auto-recovery
+		const resetDelayMs = this._extractResetDelay(reason);
+		this._fallbackOriginalModelId = currentModel.id;
+		this._fallbackResetTime = resetDelayMs ? Date.now() + resetDelayMs : undefined;
+
+		// Remove error message from agent state
+		const messages = this.agent.state.messages;
+		if (messages.length > 0 && messages[messages.length - 1].role === "assistant") {
+			this.agent.replaceMessages(messages.slice(0, -1));
+		}
+
+		// Switch model (without persisting as default)
+		this.agent.setModel(fallbackModel);
+		this.sessionManager.appendModelChange(fallbackModel.provider, fallbackModel.id);
+
+		// Re-clamp thinking level for new model's capabilities
+		this.setThinkingLevel(this.thinkingLevel);
+
+		// Emit fallback event for UI
+		this._emit({
+			type: "model_fallback",
+			fromModel: currentModel.id,
+			toModel: fallbackModel.id,
+			reason,
+		});
+
+		// Retry with the fallback model
+		setTimeout(() => {
+			this.agent.continue().catch(() => {
+				// Fallback retry failed - will be caught by next agent_end
+			});
+		}, 0);
+
+		return true;
+	}
+
+	/**
+	 * Extract quota reset delay from error message (in milliseconds).
+	 * Parses patterns like "reset after 2h30m10s", "retry delay (9001s)", "retry in 300s".
+	 */
+	private _extractResetDelay(errorText: string): number | undefined {
+		// Pattern: "reset after 2h30m10s" / "reset after 10m15s" / "reset after 39s"
+		const durationMatch = errorText.match(/reset after (?:(\d+)h)?(?:(\d+)m)?(\d+(?:\.\d+)?)s/i);
+		if (durationMatch) {
+			const hours = durationMatch[1] ? parseInt(durationMatch[1], 10) : 0;
+			const minutes = durationMatch[2] ? parseInt(durationMatch[2], 10) : 0;
+			const seconds = parseFloat(durationMatch[3]);
+			if (!Number.isNaN(seconds)) {
+				return ((hours * 60 + minutes) * 60 + seconds) * 1000;
+			}
+		}
+
+		// Pattern: "Server requested Xs retry delay" or "retry delay (Xs)"
+		const delayMatch = errorText.match(/(\d+)s\s*(?:retry\s*delay|delay)/i);
+		if (delayMatch) {
+			return parseInt(delayMatch[1], 10) * 1000;
+		}
+
+		// Pattern: "retry in Xs" or "retry in Xms"
+		const retryInMatch = errorText.match(/retry in ([0-9.]+)(ms|s)/i);
+		if (retryInMatch) {
+			const value = parseFloat(retryInMatch[1]);
+			return retryInMatch[2] === "ms" ? value : value * 1000;
+		}
+
+		return undefined;
+	}
+
+	/**
+	 * Check if the original model's quota has reset and switch back if so.
+	 * Called before each prompt to attempt recovery from fallback state.
+	 */
+	private _tryRestoreOriginalModel(): void {
+		if (!this._fallbackOriginalModelId) return;
+
+		// If we have a known reset time and it hasn't passed yet, skip
+		if (this._fallbackResetTime && Date.now() < this._fallbackResetTime) return;
+
+		// Find the original model
+		const available = this._modelRegistry.getAvailable();
+		const originalModel = available.find((m) => m.id === this._fallbackOriginalModelId);
+		if (!originalModel) {
+			// Original model no longer available, clear fallback state
+			this._fallbackOriginalModelId = undefined;
+			this._fallbackResetTime = undefined;
+			return;
+		}
+
+		const previousModelId = this.model?.id;
+
+		// Restore the original model
+		this.agent.setModel(originalModel);
+		this.sessionManager.appendModelChange(originalModel.provider, originalModel.id);
+		this.setThinkingLevel(this.thinkingLevel);
+
+		// Emit restore event
+		this._emit({
+			type: "model_fallback",
+			fromModel: previousModelId || "unknown",
+			toModel: originalModel.id,
+			reason: "quota restored",
+		});
+
+		// Clear fallback state
+		this._fallbackOriginalModelId = undefined;
+		this._fallbackResetTime = undefined;
 	}
 
 	/**

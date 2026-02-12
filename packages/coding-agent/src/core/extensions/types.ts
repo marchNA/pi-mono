@@ -804,6 +804,8 @@ export interface SessionBeforeForkResult {
 export interface SessionBeforeCompactResult {
 	cancel?: boolean;
 	compaction?: CompactionResult;
+	/** Override custom instructions for the compaction summarizer */
+	customInstructions?: string;
 }
 
 export interface SessionBeforeTreeResult {

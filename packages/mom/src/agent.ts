@@ -15,7 +15,7 @@ import {
 import { existsSync, readFileSync } from "fs";
 import { mkdir, writeFile } from "fs/promises";
 import { homedir } from "os";
-import { join } from "path";
+import { dirname, join } from "path";
 import { MomSettingsManager, syncLogToSessionManager } from "./context.js";
 import * as log from "./log.js";
 import { createExecutor, type SandboxConfig } from "./sandbox.js";
@@ -438,7 +438,7 @@ function createRunner(
 	platform: "slack" | "feishu" = "slack",
 ): AgentRunner {
 	const executor = createExecutor(sandboxConfig);
-	const workspacePath = executor.getWorkspacePath(channelDir.replace(`/${channelId}`, ""));
+	const workspacePath = executor.getWorkspacePath(dirname(channelDir));
 
 	// Create tools
 	const tools = createMomTools(executor);

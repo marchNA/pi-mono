@@ -84,6 +84,9 @@ export interface Settings {
 	thinkingBudgets?: ThinkingBudgetsSettings; // Custom token budgets for thinking levels
 	editorPaddingX?: number; // Horizontal padding for input editor (default: 0)
 	autocompleteMaxVisible?: number; // Max visible items in autocomplete dropdown (default: 5)
+	hiddenProviders?: string[]; // Provider names hidden from /model selector
+	hiddenModels?: string[]; // Model IDs hidden from /model selector (format: "provider/modelId")
+	modelFallbacks?: Record<string, string>; // Model ID fallback mapping (e.g., "claude-opus-4-6-thinking": "gemini-3-pro-high")
 	showHardwareCursor?: boolean; // Show terminal cursor while still positioning it for IME
 	markdown?: MarkdownSettings;
 	language?: string; // Language for LLM responses (default: "简体中文")
@@ -746,8 +749,38 @@ export class SettingsManager {
 		this.save();
 	}
 
+	getHiddenProviders(): string[] {
+		return this.settings.hiddenProviders ?? [];
+	}
+
+	setHiddenProviders(providers: string[]): void {
+		this.globalSettings.hiddenProviders = providers;
+		this.markModified("hiddenProviders");
+		this.save();
+	}
+
+	getHiddenModels(): string[] {
+		return this.settings.hiddenModels ?? [];
+	}
+
+	setHiddenModels(models: string[]): void {
+		this.globalSettings.hiddenModels = models;
+		this.markModified("hiddenModels");
+		this.save();
+	}
+
 	getCodeBlockIndent(): string {
 		return this.settings.markdown?.codeBlockIndent ?? "  ";
+	}
+
+	getModelFallbacks(): Record<string, string> {
+		return this.settings.modelFallbacks ?? {};
+	}
+
+	setModelFallbacks(fallbacks: Record<string, string>): void {
+		this.globalSettings.modelFallbacks = fallbacks;
+		this.markModified("modelFallbacks");
+		this.save();
 	}
 
 	getLanguage(): string {

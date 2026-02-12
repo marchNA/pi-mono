@@ -4,13 +4,18 @@ import type { AuthStorage } from "../../../core/auth-storage.js";
 import { theme } from "../theme/theme.js";
 import { DynamicBorder } from "./dynamic-border.js";
 
+/** Sentinel ID for the "Custom Provider (API Key)" option */
+export const CUSTOM_APIKEY_PROVIDER_ID = "__custom_apikey__";
+
 /**
- * Component that renders an OAuth provider selector
+ * Component that renders an OAuth provider selector.
+ * In login mode, also shows a "Custom Provider (API Key)" option at the bottom.
  */
 export class OAuthSelectorComponent extends Container {
 	private listContainer: Container;
 	private allProviders: OAuthProviderInterface[] = [];
 	private selectedIndex: number = 0;
+	private totalItems: number = 0;
 	private mode: "login" | "logout";
 	private authStorage: AuthStorage;
 	private onSelectCallback: (providerId: string) => void;
@@ -56,6 +61,8 @@ export class OAuthSelectorComponent extends Container {
 
 	private loadProviders(): void {
 		this.allProviders = getOAuthProviders();
+		// In login mode, add 1 for the custom API key option
+		this.totalItems = this.mode === "login" ? this.allProviders.length + 1 : this.allProviders.length;
 	}
 
 	private updateList(): void {
@@ -85,8 +92,27 @@ export class OAuthSelectorComponent extends Container {
 			this.listContainer.addChild(new TruncatedText(line, 0, 0));
 		}
 
+		// In login mode, add "Custom Provider (API Key)" at the bottom
+		if (this.mode === "login") {
+			const customIdx = this.allProviders.length;
+			const isSelected = this.selectedIndex === customIdx;
+
+			// Check if any custom API key providers exist
+			const customProviders = this.authStorage.list().filter((p) => this.authStorage.get(p)?.type === "api_key");
+			const statusIndicator =
+				customProviders.length > 0 ? theme.fg("dim", ` (${customProviders.length} configured)`) : "";
+
+			let line: string;
+			if (isSelected) {
+				line = theme.fg("accent", "→ ") + theme.fg("accent", "Custom Provider (API Key)") + statusIndicator;
+			} else {
+				line = `  Custom Provider (API Key)${statusIndicator}`;
+			}
+			this.listContainer.addChild(new TruncatedText(line, 0, 0));
+		}
+
 		// Show "no providers" if empty
-		if (this.allProviders.length === 0) {
+		if (this.totalItems === 0) {
 			const message =
 				this.mode === "login" ? "No OAuth providers available" : "No OAuth providers logged in. Use /login first.";
 			this.listContainer.addChild(new TruncatedText(theme.fg("muted", `  ${message}`), 0, 0));
@@ -102,14 +128,19 @@ export class OAuthSelectorComponent extends Container {
 		}
 		// Down arrow
 		else if (kb.matches(keyData, "selectDown")) {
-			this.selectedIndex = Math.min(this.allProviders.length - 1, this.selectedIndex + 1);
+			this.selectedIndex = Math.min(this.totalItems - 1, this.selectedIndex + 1);
 			this.updateList();
 		}
 		// Enter
 		else if (kb.matches(keyData, "selectConfirm")) {
-			const selectedProvider = this.allProviders[this.selectedIndex];
-			if (selectedProvider) {
-				this.onSelectCallback(selectedProvider.id);
+			if (this.mode === "login" && this.selectedIndex === this.allProviders.length) {
+				// Custom API key option
+				this.onSelectCallback(CUSTOM_APIKEY_PROVIDER_ID);
+			} else {
+				const selectedProvider = this.allProviders[this.selectedIndex];
+				if (selectedProvider) {
+					this.onSelectCallback(selectedProvider.id);
+				}
 			}
 		}
 		// Escape or Ctrl+C

@@ -2,7 +2,7 @@
 
 This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diverging from the upstream `badlogic/pi-mono`.
 
-## [Unreleased]
+## [2026-02-12]
 
 ### Added
 - `/commit <message>` slash command for quick git add + commit + push in pi interactive mode
@@ -19,17 +19,17 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 
 ### Fixed
 - Fixed bash shell detection on Windows when Git is installed in a non-standard location (e.g., `D:\Tools\Git`); now derives `bash.exe` path from `git.exe` on PATH before falling back to direct `bash.exe` search
-
-### Changed
-- Z.AI provider baseUrl corrected to `https://open.bigmodel.cn/api/coding/paas/v4`
-- Z.AI default model updated from `glm-4.6` to `glm-4.7`
-
-### Fixed
+- Fixed slow startup caused by extension loading: share a single jiti instance across all extensions with module cache enabled, reducing `resourceLoader.reload()` from ~17s to ~5.5s (3x speedup)
 - Feishu bot system prompt no longer says "Slack bot assistant"; now uses platform-aware prompt with correct formatting rules (Markdown for Feishu, mrkdwn for Slack)
 - Daemon mode now works when running via `npx tsx` (uses `--import tsx` loader for child process instead of bare `node`)
 - Thinking content no longer sent as messages to the channel (still logged to file)
 - Bare `feishu`/`slack` argument now recognized as platform (previously treated as working directory, causing data to be written to project path)
 - Feishu bot no longer floods chat with thread replies for tool details and usage summary (`respondInThread` is now a no-op for Feishu)
+- Windows path separator bug: `workspacePath` calculation now uses `dirname()` instead of string replace with `/`, fixing doubled channel ID in attachment paths
+
+### Changed
+- Z.AI provider baseUrl corrected to `https://open.bigmodel.cn/api/coding/paas/v4`
+- Z.AI default model updated from `glm-4.6` to `glm-4.7`
 
 ## 2026-02-11
 
