@@ -28,6 +28,9 @@ interface ScopedModelItem {
 
 type ModelScope = "all" | "scoped";
 
+/** Internal mode: "select" for model picking, "edit-providers" for visibility toggles */
+type SelectorMode = "select" | "edit-providers";
+
 /**
  * Component that renders a model selector with search
  */
@@ -49,6 +52,8 @@ export class ModelSelectorComponent extends Container implements Focusable {
 	private activeModels: ModelItem[] = [];
 	private filteredModels: ModelItem[] = [];
 	private selectedIndex: number = 0;
+	/** When true, the cursor is on the "Edit visible providers" action row at the bottom */
+	private onEditAction = false;
 	private currentModel?: Model<any>;
 	private settingsManager: SettingsManager;
 	private modelRegistry: ModelRegistry;
@@ -60,6 +65,12 @@ export class ModelSelectorComponent extends Container implements Focusable {
 	private scope: ModelScope = "all";
 	private scopeText?: Text;
 	private scopeHintText?: Text;
+
+	// Provider visibility editor state
+	private selectorMode: SelectorMode = "select";
+	private allProviderNames: string[] = [];
+	private providerCursor = 0;
+	private providerHidden: Set<string> = new Set();
 
 	constructor(
 		tui: TUI,
@@ -104,8 +115,9 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			this.searchInput.setValue(initialSearchInput);
 		}
 		this.searchInput.onSubmit = () => {
-			// Enter on search input selects the first filtered item
-			if (this.filteredModels[this.selectedIndex]) {
+			if (this.onEditAction) {
+				this.enterEditProvidersMode();
+			} else if (this.filteredModels[this.selectedIndex]) {
 				this.handleSelect(this.filteredModels[this.selectedIndex].model);
 			}
 		};
@@ -146,14 +158,19 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			this.errorMessage = loadError;
 		}
 
+		// Load hidden providers from settings
+		const hiddenProviders = new Set(this.settingsManager.getHiddenProviders());
+
 		// Load available models (built-in models still work even if models.json failed)
 		try {
 			const availableModels = await this.modelRegistry.getAvailable();
-			models = availableModels.map((model: Model<any>) => ({
-				provider: model.provider,
-				id: model.id,
-				model,
-			}));
+			models = availableModels
+				.filter((model: Model<any>) => !hiddenProviders.has(model.provider))
+				.map((model: Model<any>) => ({
+					provider: model.provider,
+					id: model.id,
+					model,
+				}));
 		} catch (error) {
 			this.allModels = [];
 			this.scopedModelItems = [];
@@ -165,15 +182,18 @@ export class ModelSelectorComponent extends Container implements Focusable {
 
 		this.allModels = this.sortModels(models);
 		this.scopedModelItems = this.sortModels(
-			this.scopedModels.map((scoped) => ({
-				provider: scoped.model.provider,
-				id: scoped.model.id,
-				model: scoped.model,
-			})),
+			this.scopedModels
+				.filter((scoped) => !hiddenProviders.has(scoped.model.provider))
+				.map((scoped) => ({
+					provider: scoped.model.provider,
+					id: scoped.model.id,
+					model: scoped.model,
+				})),
 		);
 		this.activeModels = this.scope === "scoped" ? this.scopedModelItems : this.allModels;
 		this.filteredModels = this.activeModels;
 		this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, this.filteredModels.length - 1));
+		this.onEditAction = false;
 	}
 
 	private sortModels(models: ModelItem[]): ModelItem[] {
@@ -204,6 +224,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
 		this.scope = scope;
 		this.activeModels = this.scope === "scoped" ? this.scopedModelItems : this.allModels;
 		this.selectedIndex = 0;
+		this.onEditAction = false;
 		this.filterModels(this.searchInput.getValue());
 		if (this.scopeText) {
 			this.scopeText.setText(this.getScopeText());
@@ -215,6 +236,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			? fuzzyFilter(this.activeModels, query, ({ id, provider }) => `${id} ${provider}`)
 			: this.activeModels;
 		this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, this.filteredModels.length - 1));
+		this.onEditAction = false;
 		this.updateList();
 	}
 
@@ -233,7 +255,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
 
 		// Build flat display list with provider headers
 		interface DisplayRow {
-			type: "provider" | "model";
+			type: "provider" | "model" | "action";
 			text: string;
 			modelIndex?: number; // index in filteredModels
 		}
@@ -243,7 +265,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			rows.push({ type: "provider", text: provider });
 			for (const item of items) {
 				const isCurrent = modelsAreEqual(this.currentModel, item.model);
-				const isSelected = flatIdx === this.selectedIndex;
+				const isSelected = flatIdx === this.selectedIndex && !this.onEditAction;
 				const checkmark = isCurrent ? theme.fg("success", " ✓") : "";
 
 				let line: string;
@@ -257,12 +279,21 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			}
 		}
 
-		// Find the row index of the selected model for scrolling
+		// Add action row at the bottom (only when not searching)
+		if (!this.searchInput.getValue()) {
+			rows.push({ type: "action", text: "" });
+		}
+
+		// Find the row index of the selected item for scrolling
 		let selectedRowIdx = 0;
-		for (let i = 0; i < rows.length; i++) {
-			if (rows[i]?.modelIndex === this.selectedIndex) {
-				selectedRowIdx = i;
-				break;
+		if (this.onEditAction) {
+			selectedRowIdx = rows.length - 1;
+		} else {
+			for (let i = 0; i < rows.length; i++) {
+				if (rows[i]?.modelIndex === this.selectedIndex) {
+					selectedRowIdx = i;
+					break;
+				}
 			}
 		}
 
@@ -275,6 +306,11 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			if (!row) continue;
 			if (row.type === "provider") {
 				this.listContainer.addChild(new Text(theme.fg("warning", `▸ ${row.text}`), 0, 0));
+			} else if (row.type === "action") {
+				const actionLine = this.onEditAction
+					? theme.fg("accent", "→ ⚙ Edit visible providers")
+					: theme.fg("dim", "  ⚙ Edit visible providers");
+				this.listContainer.addChild(new Text(actionLine, 0, 0));
 			} else {
 				this.listContainer.addChild(new Text(row.text, 0, 0));
 			}
@@ -294,7 +330,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			}
 		} else if (this.filteredModels.length === 0) {
 			this.listContainer.addChild(new Text(theme.fg("muted", "  No matching models"), 0, 0));
-		} else {
+		} else if (!this.onEditAction) {
 			const selected = this.filteredModels[this.selectedIndex];
 			if (selected) {
 				this.listContainer.addChild(new Spacer(1));
@@ -303,7 +339,104 @@ export class ModelSelectorComponent extends Container implements Focusable {
 		}
 	}
 
+	// =========================================================================
+	// Provider visibility editor
+	// =========================================================================
+
+	private enterEditProvidersMode(): void {
+		this.selectorMode = "edit-providers";
+
+		// Collect all available provider names (before filtering)
+		const providerSet = new Set<string>();
+		try {
+			const models = this.modelRegistry.getAll();
+			for (const m of models) {
+				if (this.modelRegistry.authStorage.hasAuth(m.provider)) {
+					providerSet.add(m.provider);
+				}
+			}
+		} catch {
+			// fall back to what we have
+			for (const item of this.allModels) {
+				providerSet.add(item.provider);
+			}
+		}
+		this.allProviderNames = [...providerSet].sort();
+		this.providerHidden = new Set(this.settingsManager.getHiddenProviders());
+		this.providerCursor = 0;
+		this.renderProviderEditor();
+	}
+
+	private renderProviderEditor(): void {
+		this.listContainer.clear();
+
+		this.listContainer.addChild(new Text(theme.fg("warning", "Edit visible providers"), 0, 0));
+		this.listContainer.addChild(new Text(theme.fg("dim", "Toggle which providers appear in the model list"), 0, 0));
+		this.listContainer.addChild(new Spacer(1));
+
+		const maxVisible = 15;
+		const startIdx = Math.max(
+			0,
+			Math.min(this.providerCursor - Math.floor(maxVisible / 2), this.allProviderNames.length - maxVisible),
+		);
+		const endIdx = Math.min(startIdx + maxVisible, this.allProviderNames.length);
+
+		for (let i = startIdx; i < endIdx; i++) {
+			const name = this.allProviderNames[i];
+			if (!name) continue;
+			const isHidden = this.providerHidden.has(name);
+			const isCursor = i === this.providerCursor;
+			const checkbox = isHidden ? "[ ]" : "[x]";
+
+			let line: string;
+			if (isCursor) {
+				line = theme.fg("accent", `→ ${checkbox} ${name}`);
+			} else {
+				line = `  ${checkbox} ${name}`;
+			}
+			this.listContainer.addChild(new Text(line, 0, 0));
+		}
+
+		if (startIdx > 0 || endIdx < this.allProviderNames.length) {
+			this.listContainer.addChild(
+				new Text(theme.fg("muted", `  (${this.providerCursor + 1}/${this.allProviderNames.length})`), 0, 0),
+			);
+		}
+
+		this.listContainer.addChild(new Spacer(1));
+		this.listContainer.addChild(
+			new Text(
+				`(Space: toggle, ${keyHint("selectConfirm", "to save,")} ${keyHint("selectCancel", "to cancel")})`,
+				0,
+				0,
+			),
+		);
+
+		this.tui.requestRender();
+	}
+
+	private saveProviderVisibility(): void {
+		this.settingsManager.setHiddenProviders([...this.providerHidden]);
+		this.selectorMode = "select";
+		this.onEditAction = false;
+		this.selectedIndex = 0;
+		// Reload models with new visibility
+		this.loadModels().then(() => {
+			this.filterModels(this.searchInput.getValue());
+			this.tui.requestRender();
+		});
+	}
+
+	// =========================================================================
+	// Input handling
+	// =========================================================================
+
 	handleInput(keyData: string): void {
+		if (this.selectorMode === "edit-providers") {
+			this.handleProviderEditorInput(keyData);
+			return;
+		}
+
 		const kb = getEditorKeybindings();
 		if (kb.matches(keyData, "tab")) {
 			if (this.scopedModelItems.length > 0) {
@@ -315,23 +448,51 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			}
 			return;
 		}
-		// Up arrow - wrap to bottom when at top
+		// Up arrow
 		if (kb.matches(keyData, "selectUp")) {
 			if (this.filteredModels.length === 0) return;
-			this.selectedIndex = this.selectedIndex === 0 ? this.filteredModels.length - 1 : this.selectedIndex - 1;
+			if (this.onEditAction) {
+				this.onEditAction = false;
+				this.selectedIndex = this.filteredModels.length - 1;
+			} else if (this.selectedIndex === 0) {
+				// Wrap: go to edit action if no search query, otherwise wrap to last model
+				if (!this.searchInput.getValue()) {
+					this.onEditAction = true;
+				} else {
+					this.selectedIndex = this.filteredModels.length - 1;
+				}
+			} else {
+				this.selectedIndex--;
+			}
 			this.updateList();
 		}
-		// Down arrow - wrap to top when at bottom
+		// Down arrow
 		else if (kb.matches(keyData, "selectDown")) {
 			if (this.filteredModels.length === 0) return;
-			this.selectedIndex = this.selectedIndex === this.filteredModels.length - 1 ? 0 : this.selectedIndex + 1;
+			if (this.onEditAction) {
+				this.onEditAction = false;
+				this.selectedIndex = 0;
+			} else if (this.selectedIndex === this.filteredModels.length - 1) {
+				// Wrap: go to edit action if no search query, otherwise wrap to first model
+				if (!this.searchInput.getValue()) {
+					this.onEditAction = true;
+				} else {
+					this.selectedIndex = 0;
+				}
+			} else {
+				this.selectedIndex++;
+			}
 			this.updateList();
 		}
 		// Enter
 		else if (kb.matches(keyData, "selectConfirm")) {
-			const selectedModel = this.filteredModels[this.selectedIndex];
-			if (selectedModel) {
-				this.handleSelect(selectedModel.model);
+			if (this.onEditAction) {
+				this.enterEditProvidersMode();
+			} else {
+				const selectedModel = this.filteredModels[this.selectedIndex];
+				if (selectedModel) {
+					this.handleSelect(selectedModel.model);
+				}
 			}
 		}
 		// Escape or Ctrl+C
@@ -342,6 +503,35 @@ export class ModelSelectorComponent extends Container implements Focusable {
 		else {
 			this.searchInput.handleInput(keyData);
 			this.filterModels(this.searchInput.getValue());
+		}
+	}
+
+	private handleProviderEditorInput(keyData: string): void {
+		const kb = getEditorKeybindings();
+
+		if (kb.matches(keyData, "selectUp")) {
+			this.providerCursor = Math.max(0, this.providerCursor - 1);
+			this.renderProviderEditor();
+		} else if (kb.matches(keyData, "selectDown")) {
+			this.providerCursor = Math.min(this.allProviderNames.length - 1, this.providerCursor + 1);
+			this.renderProviderEditor();
+		} else if (keyData === " ") {
+			const name = this.allProviderNames[this.providerCursor];
+			if (name) {
+				if (this.providerHidden.has(name)) {
+					this.providerHidden.delete(name);
+				} else {
+					this.providerHidden.add(name);
+				}
+			}
+			this.renderProviderEditor();
+		} else if (kb.matches(keyData, "selectConfirm")) {
+			this.saveProviderVisibility();
+		} else if (kb.matches(keyData, "selectCancel")) {
+			// Cancel: go back to model list without saving
+			this.selectorMode = "select";
+			this.updateList();
+			this.tui.requestRender();
 		}
 	}
 

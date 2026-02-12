@@ -84,6 +84,7 @@ export interface Settings {
 	thinkingBudgets?: ThinkingBudgetsSettings; // Custom token budgets for thinking levels
 	editorPaddingX?: number; // Horizontal padding for input editor (default: 0)
 	autocompleteMaxVisible?: number; // Max visible items in autocomplete dropdown (default: 5)
+	hiddenProviders?: string[]; // Provider names hidden from /model selector
 	showHardwareCursor?: boolean; // Show terminal cursor while still positioning it for IME
 	markdown?: MarkdownSettings;
 	language?: string; // Language for LLM responses (default: "简体中文")
@@ -743,6 +744,16 @@ export class SettingsManager {
 	setAutocompleteMaxVisible(maxVisible: number): void {
 		this.globalSettings.autocompleteMaxVisible = Math.max(3, Math.min(20, Math.floor(maxVisible)));
 		this.markModified("autocompleteMaxVisible");
+		this.save();
+	}
+
+	getHiddenProviders(): string[] {
+		return this.settings.hiddenProviders ?? [];
+	}
+
+	setHiddenProviders(providers: string[]): void {
+		this.globalSettings.hiddenProviders = providers;
+		this.markModified("hiddenProviders");
 		this.save();
 	}
 

@@ -9,6 +9,8 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 - Feishu bot image support: download and forward user-sent images to the LLM model
 - Feishu bot rich text (post) message support: extract text and inline images
 - `/login` now supports custom OpenAI-compatible providers via API key: interactive flow to configure provider name, API URL, API key, and select models from remote `/models` endpoint; saves to `models.json` + `auth.json`
+- `/model` selector now groups models by provider (hierarchical view)
+- `/model` selector has "Edit visible providers" option at the bottom to hide/show providers via checkbox toggles; persisted to `settings.json` as `hiddenProviders`
 
 ### Changed
 - Z.AI provider baseUrl corrected to `https://open.bigmodel.cn/api/coding/paas/v4`
