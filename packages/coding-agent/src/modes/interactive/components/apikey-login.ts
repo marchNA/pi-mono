@@ -2,7 +2,6 @@ import { Container, type Focusable, getEditorKeybindings, Input, Spacer, Text, t
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname } from "path";
 import { getModelsPath } from "../../../config.js";
-import type { AuthStorage } from "../../../core/auth-storage.js";
 import type { ModelRegistry } from "../../../core/model-registry.js";
 import { theme } from "../theme/theme.js";
 import { DynamicBorder } from "./dynamic-border.js";
@@ -30,7 +29,6 @@ export class ApiKeyLoginComponent extends Container implements Focusable {
 	private input: Input;
 	private tui: TUI;
 	private modelRegistry: ModelRegistry;
-	private authStorage: AuthStorage;
 	private onComplete: (success: boolean, message?: string) => void;
 
 	// Collected config
@@ -54,16 +52,10 @@ export class ApiKeyLoginComponent extends Container implements Focusable {
 		this.input.focused = value;
 	}
 
-	constructor(
-		tui: TUI,
-		modelRegistry: ModelRegistry,
-		authStorage: AuthStorage,
-		onComplete: (success: boolean, message?: string) => void,
-	) {
+	constructor(tui: TUI, modelRegistry: ModelRegistry, onComplete: (success: boolean, message?: string) => void) {
 		super();
 		this.tui = tui;
 		this.modelRegistry = modelRegistry;
-		this.authStorage = authStorage;
 		this.onComplete = onComplete;
 
 		this.addChild(new DynamicBorder());
@@ -314,10 +306,7 @@ export class ApiKeyLoginComponent extends Container implements Focusable {
 			.map((i) => this.remoteModels[i])
 			.filter((m): m is RemoteModel => !!m);
 
-		// Save API key to auth.json
-		this.authStorage.set(this.providerName, { type: "api_key", key: this.apiKey });
-
-		// Save provider config to models.json
+		// Save provider config to models.json (apiKey stored as literal value)
 		const modelsPath = getModelsPath();
 		let config: { providers: Record<string, unknown> } = { providers: {} };
 		if (existsSync(modelsPath)) {
@@ -343,7 +332,7 @@ export class ApiKeyLoginComponent extends Container implements Focusable {
 
 		config.providers[this.providerName] = {
 			baseUrl: this.apiUrl,
-			apiKey: `cmd:pi auth get-key ${this.providerName}`,
+			apiKey: this.apiKey,
 			api: "openai-completions",
 			models: modelDefs,
 		};

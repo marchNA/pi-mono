@@ -3712,26 +3712,21 @@ export class InteractiveMode {
 
 	private async showApiKeyLogin(): Promise<void> {
 		return new Promise<void>((resolve) => {
-			const component = new ApiKeyLoginComponent(
-				this.ui,
-				this.session.modelRegistry,
-				this.session.modelRegistry.authStorage,
-				async (success, message) => {
-					// Restore editor
-					this.editorContainer.clear();
-					this.editorContainer.addChild(this.editor);
-					this.ui.setFocus(this.editor);
-					this.ui.requestRender();
+			const component = new ApiKeyLoginComponent(this.ui, this.session.modelRegistry, async (success, message) => {
+				// Restore editor
+				this.editorContainer.clear();
+				this.editorContainer.addChild(this.editor);
+				this.ui.setFocus(this.editor);
+				this.ui.requestRender();
 
-					if (success) {
-						await this.updateAvailableProviderCount();
-						this.showStatus(message || "Custom provider configured");
-					} else if (message && message !== "Cancelled") {
-						this.showError(message);
-					}
-					resolve();
-				},
-			);
+				if (success) {
+					await this.updateAvailableProviderCount();
+					this.showStatus(message || "Custom provider configured");
+				} else if (message && message !== "Cancelled") {
+					this.showError(message);
+				}
+				resolve();
+			});
 
 			this.editorContainer.clear();
 			this.editorContainer.addChild(component);
