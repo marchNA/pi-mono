@@ -333,6 +333,21 @@ export class StdinBuffer extends EventEmitter<StdinBufferEventMap> {
 			return;
 		}
 
+		// Heuristic paste detection for terminals that don't support bracketed paste
+		// (e.g., Windows Terminal). When multi-character data arrives containing \r or \n
+		// mixed with printable text, treat it as a paste event rather than individual
+		// keystrokes. This prevents \r/\n from being interpreted as Enter (submit).
+		if (this.buffer.length > 1 && !this.buffer.startsWith(ESC)) {
+			const hasNewline = this.buffer.includes("\r") || this.buffer.includes("\n");
+			const hasPrintable = /[^\r\n]/.test(this.buffer);
+			if (hasNewline && hasPrintable) {
+				const pastedContent = this.buffer;
+				this.buffer = "";
+				this.emit("paste", pastedContent);
+				return;
+			}
+		}
+
 		const result = extractCompleteSequences(this.buffer);
 		this.buffer = result.remainder;
 
