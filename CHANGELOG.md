@@ -15,6 +15,7 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 
 ### Fixed
 - Notes extension adapted for `ContextUsage.percent` being `number | null` after upstream compaction fix
+- Skip "Update Available" notification when upstream version is already cherry-picked (checks CHANGELOG.md for `upstream cherry-pick from <version>`)
 
 ## [2026-02-12]
 
