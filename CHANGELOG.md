@@ -2,6 +2,20 @@
 
 This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diverging from the upstream `badlogic/pi-mono`.
 
+## [2026-02-13]
+
+### Added (upstream cherry-pick from 0.52.10)
+- Fixed context usage percentage showing stale pre-compaction values; footer now shows `?/200k` until next LLM response ([upstream #1382](https://github.com/badlogic/pi-mono/pull/1382))
+- Fixed `_checkCompaction()` using first compaction entry instead of latest, causing incorrect overflow detection ([upstream #1382](https://github.com/badlogic/pi-mono/pull/1382))
+- `ContextUsage.tokens` and `ContextUsage.percent` are now `number | null` (breaking: extensions must handle `null`) ([upstream #1382](https://github.com/badlogic/pi-mono/pull/1382))
+- OpenAI streaming tool-call parsing now tolerates malformed trailing JSON in partial chunks ([upstream #1424](https://github.com/badlogic/pi-mono/issues/1424))
+- Extension event forwarding for message and tool execution lifecycles: `message_start`, `message_update`, `message_end`, `tool_execution_start`, `tool_execution_update`, `tool_execution_end` ([upstream #1375](https://github.com/badlogic/pi-mono/pull/1375))
+- `--model` now works without `--provider`, supports `provider/id` syntax, fuzzy matching, and `:<thinking>` suffix ([upstream #1350](https://github.com/badlogic/pi-mono/pull/1350))
+- `@` file autocomplete fuzzy matching now prioritizes path-prefix and segment matches for nested paths ([upstream #1423](https://github.com/badlogic/pi-mono/issues/1423))
+
+### Fixed
+- Notes extension adapted for `ContextUsage.percent` being `number | null` after upstream compaction fix
+
 ## [2026-02-12]
 
 ### Added
