@@ -602,7 +602,9 @@ export class InteractiveMode {
 	 */
 	private isVersionSyncedInChangelog(version: string): boolean {
 		try {
-			const changelogPath = path.join(process.cwd(), "CHANGELOG.md");
+			// Resolve relative to the repo root (src/modes/interactive/ → 5 levels up)
+			const repoRoot = path.resolve(import.meta.dirname, "..", "..", "..", "..", "..");
+			const changelogPath = path.join(repoRoot, "CHANGELOG.md");
 			const content = fs.readFileSync(changelogPath, "utf-8");
 			return content.includes(`upstream cherry-pick from ${version}`);
 		} catch {
