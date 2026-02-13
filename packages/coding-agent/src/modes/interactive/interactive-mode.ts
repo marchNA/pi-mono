@@ -1952,6 +1952,12 @@ export class InteractiveMode {
 				await this.handleCompactCommand(customInstructions);
 				return;
 			}
+			if (text === "/handoff" || text.startsWith("/handoff ")) {
+				const startNewSession = !text.includes("--keep");
+				this.editor.setText("");
+				await this.handleHandoffCommand(startNewSession);
+				return;
+			}
 			if (text === "/reload") {
 				this.editor.setText("");
 				await this.handleReloadCommand();
@@ -1981,6 +1987,11 @@ export class InteractiveMode {
 			if (text === "/model-quota") {
 				this.editor.setText("");
 				await this.handleModelQuotaCommand();
+				return;
+			}
+			if (text === "/usage") {
+				this.editor.setText("");
+				await this.handleUsageCommand();
 				return;
 			}
 			if (text === "/quit") {
@@ -4453,6 +4464,137 @@ export class InteractiveMode {
 		}
 	}
 
+	private async handleUsageCommand(): Promise<void> {
+		// Check if MiniMax provider has API key configured
+		// Try multiple provider names: standard "minimax", "minimax-cn", and custom provider names from models.json
+		const providerNames = ["minimax", "minimax-cn", "Minimax", "MINIMAX"];
+
+		let selectedKey: string | undefined;
+		let isCn = false;
+
+		for (const name of providerNames) {
+			const key = await this.session.modelRegistry.getApiKeyForProvider(name);
+			if (key && key !== "<authenticated>") {
+				selectedKey = key;
+				isCn = name.includes("-cn") || name === "minimax-cn";
+				break;
+			}
+		}
+
+		if (!selectedKey) {
+			this.showError(
+				"MiniMax API key not configured. Set MINIMAX_API_KEY (or MINIMAX_CN_API_KEY for China) environment variable, or add it to ~/.pi/agent/auth.json or models.json.",
+			);
+			return;
+		}
+
+		// Show loader
+		const loader = new BorderedLoader(this.ui, theme, "Fetching MiniMax code plan usage...");
+		this.editorContainer.clear();
+		this.editorContainer.addChild(loader);
+		this.ui.setFocus(loader);
+		this.ui.requestRender();
+
+		const restoreEditor = () => {
+			loader.dispose();
+			this.editorContainer.clear();
+			this.editorContainer.addChild(this.editor);
+			this.ui.setFocus(this.editor);
+		};
+
+		loader.onAbort = () => {
+			restoreEditor();
+			this.showStatus("Usage check cancelled");
+		};
+
+		try {
+			const endpoint = isCn
+				? "https://www.minimax.cn/v1/api/openplatform/coding_plan/remains"
+				: "https://www.minimaxi.com/v1/api/openplatform/coding_plan/remains";
+
+			const resp = await fetch(endpoint, {
+				method: "GET",
+				headers: {
+					Authorization: `Bearer ${selectedKey}`,
+					"Content-Type": "application/json",
+				},
+			});
+
+			if (loader.signal.aborted) return;
+
+			if (!resp.ok) {
+				restoreEditor();
+				if (resp.status === 401) {
+					this.showError("MiniMax API key is invalid or expired.");
+				} else {
+					this.showError(`Failed to fetch usage: ${resp.status} ${resp.statusText}`);
+				}
+				return;
+			}
+
+			const data = (await resp.json()) as Record<string, unknown>;
+
+			restoreEditor();
+
+			// Check for API error response
+			const baseResp = data.base_resp as { status_code?: number; status_msg?: string } | undefined;
+			if (baseResp && baseResp.status_code !== 0) {
+				this.showError(`API error: ${baseResp.status_msg || "Unknown error"}`);
+				return;
+			}
+
+			// Parse model_remains array format
+			const modelRemains = data.model_remains as
+				| Array<{
+						start_time?: number;
+						end_time?: number;
+						remains_time?: number;
+						current_interval_total_count?: number;
+						current_interval_usage_count?: number;
+						model_name?: string;
+				  }>
+				| undefined;
+
+			if (!modelRemains || modelRemains.length === 0) {
+				this.showError("No usage data found in response.");
+				return;
+			}
+
+			// Build display for each model
+			const lines: string[] = [];
+			lines.push(`**MiniMax Code Plan Usage**${isCn ? " (China)" : ""}\n`);
+
+			for (const model of modelRemains) {
+				const total = model.current_interval_total_count ?? 0;
+				const remaining = model.current_interval_usage_count ?? 0;
+				const used = total - remaining;
+				const percent = total > 0 ? (used / total) * 100 : 0;
+				const percentRounded = Math.round(percent);
+				const filled = Math.round(percent / 5);
+				const bar = "█".repeat(filled) + "░".repeat(20 - filled);
+
+				lines.push(`**${model.model_name || "Unknown"}**`);
+				lines.push(`\`${bar}\` **${percentRounded}%** used`);
+				lines.push(`- **Used:** ${used.toLocaleString()}`);
+				lines.push(`- **Remaining:** ${remaining.toLocaleString()}`);
+				lines.push(`- **Total:** ${total.toLocaleString()}`);
+
+				if (model.end_time) {
+					const endDate = new Date(model.end_time);
+					lines.push(`- **Reset:** ${endDate.toLocaleDateString()} ${endDate.toLocaleTimeString()}`);
+				}
+				lines.push("");
+			}
+
+			this.chatContainer.addChild(new Spacer(1));
+			this.chatContainer.addChild(new Markdown(lines.join("\n"), 1, 1, this.getMarkdownThemeWithSettings()));
+			this.ui.requestRender();
+		} catch (error) {
+			restoreEditor();
+			this.showError(`Usage fetch failed: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
 	private async handleClearCommand(): Promise<void> {
 		// Stop loading animation
 		if (this.loadingAnimation) {
@@ -4627,6 +4769,61 @@ export class InteractiveMode {
 		}
 
 		await this.executeCompaction(customInstructions, false);
+	}
+
+	private async handleHandoffCommand(startNewSession: boolean): Promise<void> {
+		const entries = this.sessionManager.getEntries();
+		const messageCount = entries.filter((e) => e.type === "message").length;
+
+		if (messageCount < 2) {
+			this.showWarning("Nothing to handoff (no messages yet)");
+			return;
+		}
+
+		// Set up escape handler during handoff
+		const originalOnEscape = this.defaultEditor.onEscape;
+		this.defaultEditor.onEscape = () => {
+			// Abort not implemented for handoff yet - could add later
+		};
+
+		// Show handoff status
+		this.chatContainer.addChild(new Spacer(1));
+		const label = "Generating handoff document...";
+		const handoffLoader = new Loader(
+			this.ui,
+			(spinner) => theme.fg("accent", spinner),
+			(text) => theme.fg("muted", text),
+			label,
+		);
+		this.statusContainer.addChild(handoffLoader);
+		this.ui.requestRender();
+
+		try {
+			const handoff = await this.session.handoff({ startNewSession });
+
+			if (startNewSession) {
+				// New session started - rebuild UI with handoff as first message
+				this.rebuildChatFromMessages();
+				this.chatContainer.addChild(new Spacer(1));
+				this.chatContainer.addChild(
+					new Text(theme.fg("accent", `Handoff created (ID: ${handoff.id}). Started new session.`), 1, 0),
+				);
+			} else {
+				// Just generated handoff, stayed in same session - show in chat area
+				this.chatContainer.addChild(new Spacer(1));
+				this.chatContainer.addChild(new Text(theme.fg("accent", `Handoff created (ID: ${handoff.id}).`), 1, 0));
+				this.chatContainer.addChild(new Spacer(1));
+			}
+
+			this.footer.invalidate();
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			this.showError(`Handoff failed: ${message}`);
+		} finally {
+			handoffLoader.stop();
+			this.statusContainer.clear();
+			this.defaultEditor.onEscape = originalOnEscape;
+		}
 	}
 
 	private async executeCompaction(customInstructions?: string, isAuto = false): Promise<CompactionResult | undefined> {

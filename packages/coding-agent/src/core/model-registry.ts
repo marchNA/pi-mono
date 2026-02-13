@@ -531,10 +531,18 @@ export class ModelRegistry {
 	 * Get API key for a provider.
 	 */
 	async getApiKeyForProvider(provider: string): Promise<string | undefined> {
-		// Check customProviderApiKeys first for custom providers
-		const customKey = this.customProviderApiKeys.get(provider);
+		// Normalize provider name to lowercase for consistent lookup
+		const normalizedProvider = provider.toLowerCase();
+
+		// Check customProviderApiKeys first for custom providers (try both lowercase and original case)
+		const customKey = this.customProviderApiKeys.get(normalizedProvider);
 		if (customKey) return customKey;
-		return this.authStorage.getApiKey(provider);
+
+		// Also try original case for custom providers (models.json may use "Minimax" not "minimax")
+		const originalCaseKey = this.customProviderApiKeys.get(provider);
+		if (originalCaseKey) return originalCaseKey;
+
+		return this.authStorage.getApiKey(normalizedProvider);
 	}
 
 	/**

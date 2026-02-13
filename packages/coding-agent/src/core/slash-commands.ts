@@ -31,10 +31,12 @@ export const BUILTIN_SLASH_COMMANDS: ReadonlyArray<BuiltinSlashCommand> = [
 	{ name: "login", description: "Login with OAuth provider" },
 	{ name: "logout", description: "Logout from OAuth provider" },
 	{ name: "new", description: "Start a new session" },
+	{ name: "handoff", description: "Generate handoff document and start new session" },
 	{ name: "compact", description: "Manually compact the session context" },
 	{ name: "resume", description: "Resume a different session" },
 	{ name: "reload", description: "Reload extensions, skills, prompts, and themes" },
 	{ name: "commit", description: "Stage, commit, and push changes (usage: /commit <message>)" },
 	{ name: "model-quota", description: "Show Antigravity model quota usage" },
+	{ name: "usage", description: "Show MiniMax code plan usage" },
 	{ name: "quit", description: "Quit pi" },
 ];

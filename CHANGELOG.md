@@ -5,12 +5,20 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 ## [2026-02-13]
 
 ### Added
+- `/usage` slash command: shows MiniMax code plan usage with progress bar, used/remaining/total counts, and reset time
 - `/extensions` slash command: list installed extensions, install new ones from the `examples/extensions/` catalog, and open extension files in the editor
 - Input component: `placeholder` support with dimmed text and cursor display when value is empty
 - Container: `clearChildren()` and `getHeight()` helper methods
 - Model registry: `reloadCustomModels()` to refresh custom providers after adding one
 - Model registry: `getAvailable()`, `getApiKey()`, `getApiKeyForModel()` now check `customProviderApiKeys` for custom providers
 - Anthropic session key detection supports `cr_` prefix
+- Fixed context usage percentage showing stale pre-compaction values; footer now shows `?/200k` until next LLM response ([upstream #1382](https://github.com/badlogic/pi-mono/pull/1382))
+- Fixed `_checkCompaction()` using first compaction entry instead of latest, causing incorrect overflow detection ([upstream #1382](https://github.com/badlogic/pi-mono/pull/1382))
+- `ContextUsage.tokens` and `ContextUsage.percent` are now `number | null` (breaking: extensions must handle `null`) ([upstream #1382](https://github.com/badlogic/pi-mono/pull/1382))
+- OpenAI streaming tool-call parsing now tolerates malformed trailing JSON in partial chunks ([upstream #1424](https://github.com/badlogic/pi-mono/issues/1424))
+- Extension event forwarding for message and tool execution lifecycles: `message_start`, `message_update`, `message_end`, `tool_execution_start`, `tool_execution_update`, `tool_execution_end` ([upstream #1375](https://github.com/badlogic/pi-mono/pull/1375))
+- `--model` now works without `--provider`, supports `provider/id` syntax, fuzzy matching, and `:<thinking>` suffix ([upstream #1350](https://github.com/badlogic/pi-mono/pull/1350))
+- `@` file autocomplete fuzzy matching now prioritizes path-prefix and segment matches for nested paths ([upstream #1423](https://github.com/badlogic/pi-mono/issues/1423))
 
 ### Changed
 - `/model` > "Add custom provider" API Protocol step now uses a visual radio selector instead of a text input field
@@ -21,20 +29,12 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 - `/model` > "Add custom provider": Anthropic API type was saved as invalid `"anthropic"` instead of `"anthropic-messages"`, causing custom Anthropic-compatible providers to fail at runtime
 - `/model` selector: pressing Enter while search input was focused and "Add custom provider" was highlighted did not enter the add-provider flow
 - `/model` > "Add custom provider": removed redundant `deleteCharBackward` branch in input handler
-
-### Added (upstream cherry-pick from 0.52.10)
-- Fixed context usage percentage showing stale pre-compaction values; footer now shows `?/200k` until next LLM response ([upstream #1382](https://github.com/badlogic/pi-mono/pull/1382))
-- Fixed `_checkCompaction()` using first compaction entry instead of latest, causing incorrect overflow detection ([upstream #1382](https://github.com/badlogic/pi-mono/pull/1382))
-- `ContextUsage.tokens` and `ContextUsage.percent` are now `number | null` (breaking: extensions must handle `null`) ([upstream #1382](https://github.com/badlogic/pi-mono/pull/1382))
-- OpenAI streaming tool-call parsing now tolerates malformed trailing JSON in partial chunks ([upstream #1424](https://github.com/badlogic/pi-mono/issues/1424))
-- Extension event forwarding for message and tool execution lifecycles: `message_start`, `message_update`, `message_end`, `tool_execution_start`, `tool_execution_update`, `tool_execution_end` ([upstream #1375](https://github.com/badlogic/pi-mono/pull/1375))
-- `--model` now works without `--provider`, supports `provider/id` syntax, fuzzy matching, and `:<thinking>` suffix ([upstream #1350](https://github.com/badlogic/pi-mono/pull/1350))
-- `@` file autocomplete fuzzy matching now prioritizes path-prefix and segment matches for nested paths ([upstream #1423](https://github.com/badlogic/pi-mono/issues/1423))
-
-### Fixed
 - Notes extension adapted for `ContextUsage.percent` being `number | null` after upstream compaction fix
 - Skip "Update Available" notification when upstream version is already cherry-picked (checks CHANGELOG.md for `upstream cherry-pick from <version>`)
 - Fix CHANGELOG.md lookup using repo root instead of `cwd()`, so version check bypass works when running pi from other directories
+
+#### Upstream cherry-pick from 0.52.10
+- (see Added and Fixed sections above)
 
 ## [2026-02-12]
 
