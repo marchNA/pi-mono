@@ -4,6 +4,9 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 
 ## [2026-02-13]
 
+### Added
+- `/extensions` slash command: list installed extensions, install new ones from the `examples/extensions/` catalog, and open extension files in the editor
+
 ### Added (upstream cherry-pick from 0.52.10)
 - Fixed context usage percentage showing stale pre-compaction values; footer now shows `?/200k` until next LLM response ([upstream #1382](https://github.com/badlogic/pi-mono/pull/1382))
 - Fixed `_checkCompaction()` using first compaction entry instead of latest, causing incorrect overflow detection ([upstream #1382](https://github.com/badlogic/pi-mono/pull/1382))
