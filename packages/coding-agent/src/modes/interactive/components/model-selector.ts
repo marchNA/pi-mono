@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { type Model, modelsAreEqual } from "@mariozechner/pi-ai";
 import {
 	Container,
@@ -28,8 +31,8 @@ interface ScopedModelItem {
 
 type ModelScope = "all" | "scoped";
 
-/** Internal mode: "select" for model picking, "edit-providers" for provider toggles, "edit-models" for per-model toggles */
-type SelectorMode = "select" | "edit-providers" | "edit-models";
+/** Internal mode: "select" for model picking, "edit-providers" for provider toggles, "edit-models" for per-model toggles, "add-provider" for adding custom provider */
+type SelectorMode = "select" | "edit-providers" | "edit-models" | "add-provider";
 
 /**
  * Component that renders a model selector with search
@@ -76,6 +79,22 @@ export class ModelSelectorComponent extends Container implements Focusable {
 	private editingModels: Array<{ provider: string; id: string }> = [];
 	private modelEditorCursor = 0;
 	private modelHidden: Set<string> = new Set(); // "provider/modelId" format
+	// Add custom provider state
+	private onAddProviderAction = false; // When cursor is on "+ Add custom provider" row
+	private addProviderStep: "name" | "baseUrl" | "apiKey" | "api" | "modelId" | "confirm" = "name";
+	private addProviderInput!: Input;
+	private static readonly API_OPTIONS = [
+		{ value: "openai" as const, label: "OpenAI Compatible" },
+		{ value: "anthropic" as const, label: "Anthropic Compatible" },
+	];
+	private apiOptionIndex = 0; // cursor index into API_OPTIONS
+	private addProviderData = {
+		name: "",
+		baseUrl: "",
+		apiKey: "",
+		api: "openai" as "openai" | "anthropic",
+		modelId: "",
+	};
 
 	constructor(
 		tui: TUI,
@@ -122,6 +141,8 @@ export class ModelSelectorComponent extends Container implements Focusable {
 		this.searchInput.onSubmit = () => {
 			if (this.onEditAction) {
 				this.enterEditProvidersMode();
+			} else if (this.onAddProviderAction) {
+				this.enterAddProviderMode();
 			} else if (this.filteredModels[this.selectedIndex]) {
 				this.handleSelect(this.filteredModels[this.selectedIndex].model);
 			}
@@ -278,7 +299,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			rows.push({ type: "provider", text: provider });
 			for (const item of items) {
 				const isCurrent = modelsAreEqual(this.currentModel, item.model);
-				const isSelected = flatIdx === this.selectedIndex && !this.onEditAction;
+				const isSelected = flatIdx === this.selectedIndex && !this.onEditAction && !this.onAddProviderAction;
 				const checkmark = isCurrent ? theme.fg("success", " ✓") : "";
 
 				let line: string;
@@ -292,15 +313,18 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			}
 		}
 
-		// Add action row at the bottom (only when not searching)
+		// Add action rows at the bottom (only when not searching)
 		if (!this.searchInput.getValue()) {
-			rows.push({ type: "action", text: "" });
+			rows.push({ type: "action", text: "edit" });
+			rows.push({ type: "action", text: "add" });
 		}
 
 		// Find the row index of the selected item for scrolling
 		let selectedRowIdx = 0;
 		if (this.onEditAction) {
-			selectedRowIdx = rows.length - 1;
+			selectedRowIdx = rows.length - 2; // "Edit visible providers" is second-to-last
+		} else if (this.onAddProviderAction) {
+			selectedRowIdx = rows.length - 1; // "Add custom provider" is last
 		} else {
 			for (let i = 0; i < rows.length; i++) {
 				if (rows[i]?.modelIndex === this.selectedIndex) {
@@ -320,10 +344,17 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			if (row.type === "provider") {
 				this.listContainer.addChild(new Text(theme.fg("warning", `▸ ${row.text}`), 0, 0));
 			} else if (row.type === "action") {
-				const actionLine = this.onEditAction
-					? theme.fg("accent", "→ ⚙ Edit visible providers")
-					: theme.fg("dim", "  ⚙ Edit visible providers");
-				this.listContainer.addChild(new Text(actionLine, 0, 0));
+				if (row.text === "edit") {
+					const actionLine = this.onEditAction
+						? theme.fg("accent", "→ ⚙ Edit visible providers")
+						: theme.fg("dim", "  ⚙ Edit visible providers");
+					this.listContainer.addChild(new Text(actionLine, 0, 0));
+				} else if (row.text === "add") {
+					const actionLine = this.onAddProviderAction
+						? theme.fg("accent", "→ + Add custom provider")
+						: theme.fg("dim", "  + Add custom provider");
+					this.listContainer.addChild(new Text(actionLine, 0, 0));
+				}
 			} else {
 				this.listContainer.addChild(new Text(row.text, 0, 0));
 			}
@@ -343,7 +374,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			}
 		} else if (this.filteredModels.length === 0) {
 			this.listContainer.addChild(new Text(theme.fg("muted", "  No matching models"), 0, 0));
-		} else if (!this.onEditAction) {
+		} else if (!this.onEditAction && !this.onAddProviderAction) {
 			const selected = this.filteredModels[this.selectedIndex];
 			if (selected) {
 				this.listContainer.addChild(new Spacer(1));
@@ -524,6 +555,10 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			this.handleModelEditorInput(keyData);
 			return;
 		}
+		if (this.selectorMode === "add-provider") {
+			this.handleAddProviderInput(keyData);
+			return;
+		}
 
 		const kb = getEditorKeybindings();
 		if (kb.matches(keyData, "tab")) {
@@ -539,13 +574,16 @@ export class ModelSelectorComponent extends Container implements Focusable {
 		// Up arrow
 		if (kb.matches(keyData, "selectUp")) {
 			if (this.filteredModels.length === 0) return;
-			if (this.onEditAction) {
+			if (this.onAddProviderAction) {
+				this.onAddProviderAction = false;
+				this.onEditAction = true;
+			} else if (this.onEditAction) {
 				this.onEditAction = false;
 				this.selectedIndex = this.filteredModels.length - 1;
 			} else if (this.selectedIndex === 0) {
-				// Wrap: go to edit action if no search query, otherwise wrap to last model
+				// Wrap: go to add action if no search query
 				if (!this.searchInput.getValue()) {
-					this.onEditAction = true;
+					this.onAddProviderAction = true;
 				} else {
 					this.selectedIndex = this.filteredModels.length - 1;
 				}
@@ -557,11 +595,14 @@ export class ModelSelectorComponent extends Container implements Focusable {
 		// Down arrow
 		else if (kb.matches(keyData, "selectDown")) {
 			if (this.filteredModels.length === 0) return;
-			if (this.onEditAction) {
-				this.onEditAction = false;
+			if (this.onAddProviderAction) {
+				this.onAddProviderAction = false;
 				this.selectedIndex = 0;
+			} else if (this.onEditAction) {
+				this.onEditAction = false;
+				this.onAddProviderAction = true;
 			} else if (this.selectedIndex === this.filteredModels.length - 1) {
-				// Wrap: go to edit action if no search query, otherwise wrap to first model
+				// Wrap: go to edit action if no search query
 				if (!this.searchInput.getValue()) {
 					this.onEditAction = true;
 				} else {
@@ -574,7 +615,9 @@ export class ModelSelectorComponent extends Container implements Focusable {
 		}
 		// Enter
 		else if (kb.matches(keyData, "selectConfirm")) {
-			if (this.onEditAction) {
+			if (this.onAddProviderAction) {
+				this.enterAddProviderMode();
+			} else if (this.onEditAction) {
 				this.enterEditProvidersMode();
 			} else {
 				const selectedModel = this.filteredModels[this.selectedIndex];
@@ -653,6 +696,218 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			this.selectorMode = "edit-providers";
 			this.renderProviderEditor();
 		}
+	}
+
+	private enterAddProviderMode(): void {
+		this.selectorMode = "add-provider";
+		this.addProviderStep = "name";
+		this.addProviderData = { name: "", baseUrl: "", apiKey: "", api: "openai", modelId: "" };
+		this.apiOptionIndex = 0;
+		this.addProviderInput = new Input();
+		this.addProviderInput.setPlaceholder("Enter provider name (e.g., my-custom)");
+		this.renderAddProvider();
+	}
+
+	private renderAddProvider(): void {
+		this.listContainer.clear();
+
+		const stepLabels = {
+			name: "Provider Name",
+			baseUrl: "Base URL",
+			apiKey: "API Key",
+			api: "API Protocol",
+			modelId: "Model ID",
+			confirm: "Confirm",
+		};
+
+		this.listContainer.addChild(new Text(theme.fg("accent", "=== Add Custom Provider ==="), 0, 0));
+		this.listContainer.addChild(new Text("", 0, 0));
+
+		// Show current progress
+		for (const step of ["name", "baseUrl", "apiKey", "api", "modelId"] as const) {
+			const label = stepLabels[step];
+			const value = this.addProviderData[step];
+			const isCurrent = this.addProviderStep === step;
+			const prefix = isCurrent ? "→ " : "  ";
+			// Mask API key display
+			const displayValue = step === "apiKey" && value ? "••••••••" : value;
+			const suffix = displayValue ? `: ${displayValue}` : ": (not set)";
+			const text = prefix + label + suffix;
+			if (isCurrent) {
+				this.listContainer.addChild(new Text(theme.fg("accent", text), 0, 0));
+			} else if (value) {
+				this.listContainer.addChild(new Text(theme.fg("text", text), 0, 0));
+			} else {
+				this.listContainer.addChild(new Text(theme.fg("dim", text), 0, 0));
+			}
+		}
+
+		this.listContainer.addChild(new Text("", 0, 0));
+
+		// Show input or selector for current step
+		if (this.addProviderStep === "api") {
+			this.listContainer.addChild(new Text(theme.fg("accent", `${stepLabels[this.addProviderStep]}:`), 0, 0));
+			for (let i = 0; i < ModelSelectorComponent.API_OPTIONS.length; i++) {
+				const opt = ModelSelectorComponent.API_OPTIONS[i]!;
+				const isCursor = i === this.apiOptionIndex;
+				const radio = isCursor ? "(●)" : "( )";
+				const line = isCursor
+					? theme.fg("accent", `  ${radio} ${opt.label}`)
+					: theme.fg("text", `  ${radio} ${opt.label}`);
+				this.listContainer.addChild(new Text(line, 0, 0));
+			}
+			this.listContainer.addChild(new Text(theme.fg("dim", "  ↑↓ select, Enter confirm"), 0, 0));
+		} else if (this.addProviderStep !== "confirm") {
+			this.listContainer.addChild(new Text(theme.fg("accent", `${stepLabels[this.addProviderStep]}:`), 0, 0));
+			this.listContainer.addChild(this.addProviderInput);
+			this.addProviderInput.setPosition(0, this.listContainer.getHeight() - 1);
+		} else {
+			this.listContainer.addChild(new Text(theme.fg("accent", "Press Enter to save, Escape to cancel"), 0, 0));
+		}
+	}
+
+	private handleAddProviderInput(keyData: string): void {
+		const kb = getEditorKeybindings();
+
+		if (kb.matches(keyData, "selectCancel")) {
+			// Escape: go back to select mode
+			this.selectorMode = "select";
+			this.updateList();
+			return;
+		}
+
+		if (this.addProviderStep === "confirm") {
+			if (kb.matches(keyData, "selectConfirm")) {
+				this.saveCustomProvider();
+				this.selectorMode = "select";
+				this.updateList();
+			}
+			return;
+		}
+
+		// Special handling for API protocol selection - use visual selector
+		if (this.addProviderStep === "api") {
+			if (kb.matches(keyData, "cursorUp")) {
+				this.apiOptionIndex = Math.max(0, this.apiOptionIndex - 1);
+				this.addProviderData.api = ModelSelectorComponent.API_OPTIONS[this.apiOptionIndex]!.value;
+				this.renderAddProvider();
+				return;
+			}
+			if (kb.matches(keyData, "cursorDown")) {
+				this.apiOptionIndex = Math.min(ModelSelectorComponent.API_OPTIONS.length - 1, this.apiOptionIndex + 1);
+				this.addProviderData.api = ModelSelectorComponent.API_OPTIONS[this.apiOptionIndex]!.value;
+				this.renderAddProvider();
+				return;
+			}
+			if (kb.matches(keyData, "selectConfirm")) {
+				this.addProviderStep = "modelId";
+				this.addProviderInput.setValue("");
+				this.addProviderInput.setPlaceholder("Enter model ID (e.g., gpt-4)");
+				this.renderAddProvider();
+				return;
+			}
+			return; // Ignore all other keys in api step
+		}
+
+		// Handle input for current step
+		if (kb.matches(keyData, "selectConfirm")) {
+			const value = this.addProviderInput.getValue().trim();
+			if (!value) return; // Don't allow empty values
+
+			switch (this.addProviderStep) {
+				case "name":
+					this.addProviderData.name = value;
+					this.addProviderStep = "baseUrl";
+					this.addProviderInput.setValue("");
+					this.addProviderInput.setPlaceholder("Enter base URL (e.g., https://api.example.com/v1)");
+					break;
+				case "baseUrl":
+					this.addProviderData.baseUrl = value;
+					this.addProviderStep = "apiKey";
+					this.addProviderInput.setValue("");
+					this.addProviderInput.setPlaceholder("Enter API key");
+					break;
+				case "apiKey":
+					this.addProviderData.apiKey = value;
+					this.addProviderStep = "api";
+					this.apiOptionIndex = 0;
+					this.addProviderData.api = "openai";
+					break;
+				case "modelId":
+					this.addProviderData.modelId = value;
+					this.addProviderStep = "confirm";
+					break;
+			}
+			this.renderAddProvider();
+		} else {
+			// Pass all other input to the input field (handles typing, delete, paste, etc.)
+			this.addProviderInput.handleInput(keyData);
+		}
+	}
+
+	private saveCustomProvider(): void {
+		const { name, baseUrl, apiKey, api, modelId } = this.addProviderData;
+		if (!name || !baseUrl || !api || !modelId) return;
+
+		const modelsConfigPath = path.join(os.homedir(), ".pi", "agent", "models.json");
+
+		interface CustomModel {
+			id: string;
+			name: string;
+			contextWindow: number;
+			maxTokens: number;
+		}
+		interface CustomProvider {
+			baseUrl: string;
+			apiKey: string;
+			api: string;
+			models: CustomModel[];
+		}
+		interface ModelsConfig {
+			providers?: Record<string, CustomProvider>;
+		}
+
+		let config: ModelsConfig = {};
+
+		try {
+			if (fs.existsSync(modelsConfigPath)) {
+				config = JSON.parse(fs.readFileSync(modelsConfigPath, "utf-8"));
+			}
+		} catch {
+			// ignore, create new config
+		}
+
+		if (!config.providers) config.providers = {};
+
+		// Add or update the custom provider
+		const existingProvider = config.providers[name];
+		const newModel: CustomModel = {
+			id: modelId,
+			name: modelId,
+			contextWindow: 128000,
+			maxTokens: 16384,
+		};
+
+		if (existingProvider) {
+			// Provider exists, add model if not already present
+			if (!existingProvider.models.some((m) => m.id === modelId)) {
+				existingProvider.models.push(newModel);
+			}
+		} else {
+			// Create new provider with the model
+			config.providers[name] = {
+				baseUrl,
+				apiKey,
+				api: api === "openai" ? "openai-completions" : "anthropic-messages",
+				models: [newModel],
+			};
+		}
+
+		fs.mkdirSync(path.dirname(modelsConfigPath), { recursive: true });
+		fs.writeFileSync(modelsConfigPath, JSON.stringify(config, null, 2));
+
+		// Reload models
+		this.modelRegistry.reloadCustomModels();
 	}
 
 	private handleSelect(model: Model<any>): void {

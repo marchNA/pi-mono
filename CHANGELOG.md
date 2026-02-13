@@ -7,6 +7,15 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 ### Added
 - `/extensions` slash command: list installed extensions, install new ones from the `examples/extensions/` catalog, and open extension files in the editor
 
+### Changed
+- `/model` > "Add custom provider" API Protocol step now uses a visual radio selector instead of a text input field
+
+### Fixed
+- `/model` selector: cursor arrow appeared on both a model row and "Add custom provider" simultaneously (missing `onAddProviderAction` state checks in 3 places)
+- `/model` > "Add custom provider": Anthropic API type was saved as invalid `"anthropic"` instead of `"anthropic-messages"`, causing custom Anthropic-compatible providers to fail at runtime
+- `/model` selector: pressing Enter while search input was focused and "Add custom provider" was highlighted did not enter the add-provider flow
+- `/model` > "Add custom provider": removed redundant `deleteCharBackward` branch in input handler
+
 ### Added (upstream cherry-pick from 0.52.10)
 - Fixed context usage percentage showing stale pre-compaction values; footer now shows `?/200k` until next LLM response ([upstream #1382](https://github.com/badlogic/pi-mono/pull/1382))
 - Fixed `_checkCompaction()` using first compaction entry instead of latest, causing incorrect overflow detection ([upstream #1382](https://github.com/badlogic/pi-mono/pull/1382))
