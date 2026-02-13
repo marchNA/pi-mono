@@ -583,12 +583,30 @@ export class InteractiveMode {
 			const latestVersion = data.version;
 
 			if (latestVersion && latestVersion !== this.version) {
+				// Check if upstream version has been cherry-picked (fork workflow)
+				if (this.isVersionSyncedInChangelog(latestVersion)) {
+					return undefined;
+				}
 				return latestVersion;
 			}
 
 			return undefined;
 		} catch {
 			return undefined;
+		}
+	}
+
+	/**
+	 * Check if an upstream version has been cherry-picked into this fork
+	 * by looking for "upstream cherry-pick from <version>" in the root CHANGELOG.md.
+	 */
+	private isVersionSyncedInChangelog(version: string): boolean {
+		try {
+			const changelogPath = path.join(process.cwd(), "CHANGELOG.md");
+			const content = fs.readFileSync(changelogPath, "utf-8");
+			return content.includes(`upstream cherry-pick from ${version}`);
+		} catch {
+			return false;
 		}
 	}
 
