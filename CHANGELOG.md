@@ -16,6 +16,7 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 ### Fixed
 - Notes extension adapted for `ContextUsage.percent` being `number | null` after upstream compaction fix
 - Skip "Update Available" notification when upstream version is already cherry-picked (checks CHANGELOG.md for `upstream cherry-pick from <version>`)
+- Fix CHANGELOG.md lookup using repo root instead of `cwd()`, so version check bypass works when running pi from other directories
 
 ## [2026-02-12]
 
