@@ -30,7 +30,7 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 - `/model` selector: pressing Enter while search input was focused and "Add custom provider" was highlighted did not enter the add-provider flow
 - `/model` > "Add custom provider": removed redundant `deleteCharBackward` branch in input handler
 - Notes extension adapted for `ContextUsage.percent` being `number | null` after upstream compaction fix
-- Skip "Update Available" notification when upstream version is already cherry-picked (checks CHANGELOG.md for `upstream cherry-pick from <version>`)
+- Skip "Update Available" notification when upstream version is already cherry-picked (checks CHANGELOG.md for `upstream cherry-pick from <version>`, now uses regex for precise version matching)
 - Fix CHANGELOG.md lookup using repo root instead of `cwd()`, so version check bypass works when running pi from other directories
 
 #### Upstream cherry-pick from 0.52.10

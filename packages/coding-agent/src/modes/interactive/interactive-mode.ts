@@ -606,7 +606,11 @@ export class InteractiveMode {
 			const repoRoot = path.resolve(import.meta.dirname, "..", "..", "..", "..", "..");
 			const changelogPath = path.join(repoRoot, "CHANGELOG.md");
 			const content = fs.readFileSync(changelogPath, "utf-8");
-			return content.includes(`upstream cherry-pick from ${version}`);
+
+			// Match "upstream cherry-pick from" followed by the specific version
+			// e.g., "upstream cherry-pick from 0.52.10"
+			const pattern = new RegExp(`upstream\\s+cherry-pick\\s+from\\s+${version.replace(/\./g, "\\.")}`, "i");
+			return pattern.test(content);
 		} catch {
 			return false;
 		}
