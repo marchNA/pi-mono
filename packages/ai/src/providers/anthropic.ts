@@ -468,7 +468,7 @@ export const streamSimpleAnthropic: StreamFunction<"anthropic-messages", SimpleS
 };
 
 function isOAuthToken(apiKey: string): boolean {
-	return apiKey.includes("sk-ant-oat");
+	return apiKey.includes("sk-ant-oat") || apiKey.startsWith("cr_");
 }
 
 function createClient(

@@ -177,6 +177,16 @@ export class Container implements Component {
 		this.children = [];
 	}
 
+	clearChildren(): void {
+		this.children = [];
+	}
+
+	getHeight(): number {
+		// Return the number of lines this container renders
+		// Since we don't know the width, return a reasonable default
+		return this.children.length;
+	}
+
 	invalidate(): void {
 		for (const child of this.children) {
 			child.invalidate?.();

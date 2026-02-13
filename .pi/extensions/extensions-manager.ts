@@ -1,20 +1,14 @@
-import type { ExtensionContext, ExtensionCommandContext } from "@anthropic/pi-coding-agent/extensions";
+import type { ExtensionContext } from "@anthropic/pi-coding-agent/extensions";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { execSync } from "node:child_process";
 
-/**
- * Extension manager: list, install, and open extension directories.
- *
- * Commands:
- *   /extensions          — list all loaded extensions (project + global)
- *   /extensions install  — install an example extension to project or global dir
- *   /extensions open     — open extension directory in file explorer
- */
 export default function extensionsManager(pi: ExtensionContext) {
-	const repoRoot = path.resolve(import.meta.dirname, "..", "..", "..", "..", "..");
-	const examplesDir = path.join(repoRoot, "packages", "coding-agent", "examples", "extensions");
+	// Derive examples dir from the cli entry point (process.argv[1] = .../src/cli.ts)
+	const cliPath = process.argv[1] || "";
+	const pkgDir = path.resolve(path.dirname(cliPath), "..");
+	const examplesDir = path.join(pkgDir, "examples", "extensions");
 
 	function getGlobalExtDir(): string {
 		return path.join(os.homedir(), ".pi", "agent", "extensions");
@@ -24,17 +18,9 @@ export default function extensionsManager(pi: ExtensionContext) {
 		return path.join(cwd, ".pi", "extensions");
 	}
 
-	function listExtensionsInDir(dir: string): string[] {
+	function listDir(dir: string): string[] {
 		try {
 			return fs.readdirSync(dir).filter((f) => f.endsWith(".ts"));
-		} catch {
-			return [];
-		}
-	}
-
-	function getAvailableExamples(): string[] {
-		try {
-			return fs.readdirSync(examplesDir).filter((f) => f.endsWith(".ts"));
 		} catch {
 			return [];
 		}
@@ -43,148 +29,93 @@ export default function extensionsManager(pi: ExtensionContext) {
 	pi.registerCommand("extensions", {
 		description: "Manage extensions: list, install, open",
 		handler: async (args, ctx) => {
-			const subcommand = args.trim().split(/\s+/)[0] || "list";
+			try {
+				const sub = args.trim().split(/\s+/)[0] || "list";
 
-			if (subcommand === "list") {
-				handleList(ctx);
-			} else if (subcommand === "install") {
-				await handleInstall(ctx);
-			} else if (subcommand === "open") {
-				handleOpen(ctx);
-			} else {
-				ctx.ui.notify(`Unknown subcommand: ${subcommand}. Use: list, install, open`, "error");
+				if (sub === "install") {
+					await doInstall(ctx);
+					return;
+				}
+
+				if (sub === "open") {
+					doOpen(ctx);
+					return;
+				}
+
+				// Default: list
+				const pDir = getProjectExtDir(ctx.cwd);
+				const gDir = getGlobalExtDir();
+				const pExts = listDir(pDir);
+				const gExts = listDir(gDir);
+
+				const lines: string[] = [];
+				lines.push("=== Loaded Extensions ===");
+				lines.push("");
+				lines.push(`Project (${pDir}):`);
+				for (const e of pExts) lines.push(`  - ${e}`);
+				if (pExts.length === 0) lines.push("  (none)");
+				lines.push("");
+				lines.push(`Global (${gDir}):`);
+				for (const e of gExts) lines.push(`  - ${e}`);
+				if (gExts.length === 0) lines.push("  (none)");
+				lines.push("");
+				lines.push(`Total: ${pExts.length + gExts.length} extension(s)`);
+				lines.push("");
+				lines.push("Subcommands: /extensions list | install | open");
+
+				ctx.ui.notify(lines.join("\n"), "info");
+			} catch (err) {
+				ctx.ui.notify(`Error: ${err}`, "error");
 			}
 		},
 	});
 
-	function handleList(ctx: ExtensionCommandContext) {
-		const projectDir = getProjectExtDir(ctx.cwd);
-		const globalDir = getGlobalExtDir();
-		const projectExts = listExtensionsInDir(projectDir);
-		const globalExts = listExtensionsInDir(globalDir);
-
-		const lines: string[] = [];
-		lines.push("=== Loaded Extensions ===");
-		lines.push("");
-
-		lines.push(`Project (${projectDir}):`);
-		if (projectExts.length === 0) {
-			lines.push("  (none)");
-		} else {
-			for (const ext of projectExts) {
-				lines.push(`  - ${ext}`);
-			}
-		}
-
-		lines.push("");
-		lines.push(`Global (${globalDir}):`);
-		if (globalExts.length === 0) {
-			lines.push("  (none)");
-		} else {
-			for (const ext of globalExts) {
-				lines.push(`  - ${ext}`);
-			}
-		}
-
-		lines.push("");
-		lines.push(`Total: ${projectExts.length + globalExts.length} extension(s)`);
-		lines.push("");
-		lines.push("Subcommands: /extensions list | install | open");
-
-		ctx.ui.notify(lines.join("\n"), "info");
-	}
-
-	async function handleInstall(ctx: ExtensionCommandContext) {
+	async function doInstall(ctx: Parameters<NonNullable<Parameters<typeof pi.registerCommand>[1]["handler"]>>[1]) {
 		if (!ctx.hasUI) {
-			ctx.ui.notify("/extensions install requires interactive mode", "error");
+			ctx.ui.notify("Requires interactive mode.", "error");
 			return;
 		}
 
-		const examples = getAvailableExamples();
+		const examples = listDir(examplesDir);
 		if (examples.length === 0) {
-			ctx.ui.notify("No example extensions found in: " + examplesDir, "error");
+			ctx.ui.notify("No examples found in: " + examplesDir, "error");
 			return;
 		}
 
-		const projectDir = getProjectExtDir(ctx.cwd);
-		const globalDir = getGlobalExtDir();
-		const projectExts = new Set(listExtensionsInDir(projectDir));
-		const globalExts = new Set(listExtensionsInDir(globalDir));
+		const pDir = getProjectExtDir(ctx.cwd);
+		const gDir = getGlobalExtDir();
+		const installed = new Set([...listDir(pDir), ...listDir(gDir)]);
 
-		// Build items list with install status
-		const items = examples.map((name) => {
-			const inProject = projectExts.has(name);
-			const inGlobal = globalExts.has(name);
-			const suffix = inProject ? " [installed: project]" : inGlobal ? " [installed: global]" : "";
-			return { label: `${name}${suffix}`, name };
-		});
+		const labels = examples.map((n) => (installed.has(n) ? `${n} [installed]` : n));
+		const picked = await ctx.ui.select("Select extension:", labels);
+		if (!picked) return;
 
-		const selectedLabel = await ctx.ui.select(
-			"Select extension to install:",
-			items.map((i) => i.label),
-		);
-		if (!selectedLabel) return;
-
-		const selected = items.find((i) => i.label === selectedLabel);
-		if (!selected) return;
-
-		// Choose target: project or global
-		const target = await ctx.ui.select("Install to:", [
-			"project (.pi/extensions/)",
-			"global (~/.pi/agent/extensions/)",
-		]);
+		const name = picked.replace(/ \[installed\]$/, "");
+		const target = await ctx.ui.select("Install to:", ["project", "global"]);
 		if (!target) return;
 
-		const isProject = target.startsWith("project");
-		const targetDir = isProject ? projectDir : globalDir;
-		const srcPath = path.join(examplesDir, selected.name);
-		const destPath = path.join(targetDir, selected.name);
+		const destDir = target === "project" ? pDir : gDir;
+		fs.mkdirSync(destDir, { recursive: true });
 
-		fs.mkdirSync(targetDir, { recursive: true });
-
-		if (fs.existsSync(destPath)) {
-			const overwrite = await ctx.ui.confirm(
-				"Overwrite?",
-				`${selected.name} already exists in ${isProject ? "project" : "global"}. Overwrite?`,
-			);
-			if (!overwrite) {
-				ctx.ui.notify("Installation cancelled.", "info");
-				return;
-			}
+		const dest = path.join(destDir, name);
+		if (fs.existsSync(dest)) {
+			const ok = await ctx.ui.confirm("Overwrite?", `${name} already exists. Overwrite?`);
+			if (!ok) return;
 		}
 
-		try {
-			fs.copyFileSync(srcPath, destPath);
-			ctx.ui.notify(
-				`Installed ${selected.name} to ${isProject ? "project" : "global"} extensions.\nRestart pi to load it.`,
-				"info",
-			);
-		} catch (err) {
-			ctx.ui.notify(`Failed to install: ${err}`, "error");
-		}
+		fs.copyFileSync(path.join(examplesDir, name), dest);
+		ctx.ui.notify(`Installed ${name} to ${target}. Restart pi to load.`, "info");
 	}
 
-	function handleOpen(ctx: ExtensionCommandContext) {
-		const projectDir = getProjectExtDir(ctx.cwd);
-		const globalDir = getGlobalExtDir();
-
+	function doOpen(ctx: Parameters<NonNullable<Parameters<typeof pi.registerCommand>[1]["handler"]>>[1]) {
+		const pDir = getProjectExtDir(ctx.cwd);
+		const gDir = getGlobalExtDir();
 		const opener = process.platform === "win32" ? "explorer" : process.platform === "darwin" ? "open" : "xdg-open";
-
-		const lines: string[] = [];
-		lines.push("Extension directories:");
-		lines.push(`  Project: ${projectDir}`);
-		lines.push(`  Global:  ${globalDir}`);
-
 		try {
-			if (fs.existsSync(projectDir)) {
-				execSync(`${opener} "${projectDir}"`);
-				lines.push("");
-				lines.push("Opened project extensions directory.");
-			}
+			if (fs.existsSync(pDir)) execSync(`${opener} "${pDir}"`);
 		} catch {
-			// ignore - best effort
+			// ignore
 		}
-
-		ctx.ui.notify(lines.join("\n"), "info");
+		ctx.ui.notify(`Project: ${pDir}\nGlobal: ${gDir}`, "info");
 	}
 }

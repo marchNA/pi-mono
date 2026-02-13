@@ -285,6 +285,11 @@ export class ModelRegistry {
 		this.models = combined;
 	}
 
+	/** Reload custom models from models.json (called after adding a custom provider) */
+	reloadCustomModels(): void {
+		this.loadModels();
+	}
+
 	/** Load built-in models and apply provider/model overrides */
 	private loadBuiltInModels(
 		overrides: Map<string, ProviderOverride>,
@@ -496,7 +501,13 @@ export class ModelRegistry {
 	 * This is a fast check that doesn't refresh OAuth tokens.
 	 */
 	getAvailable(): Model<Api>[] {
-		return this.models.filter((m) => this.authStorage.hasAuth(m.provider));
+		return this.models.filter((m) => {
+			// Check authStorage for built-in providers
+			if (this.authStorage.hasAuth(m.provider)) return true;
+			// Check customProviderApiKeys for custom providers
+			if (this.customProviderApiKeys.has(m.provider)) return true;
+			return false;
+		});
 	}
 
 	/**
@@ -510,6 +521,9 @@ export class ModelRegistry {
 	 * Get API key for a model.
 	 */
 	async getApiKey(model: Model<Api>): Promise<string | undefined> {
+		// Check customProviderApiKeys first for custom providers
+		const customKey = this.customProviderApiKeys.get(model.provider);
+		if (customKey) return customKey;
 		return this.authStorage.getApiKey(model.provider);
 	}
 
@@ -517,6 +531,9 @@ export class ModelRegistry {
 	 * Get API key for a provider.
 	 */
 	async getApiKeyForProvider(provider: string): Promise<string | undefined> {
+		// Check customProviderApiKeys first for custom providers
+		const customKey = this.customProviderApiKeys.get(provider);
+		if (customKey) return customKey;
 		return this.authStorage.getApiKey(provider);
 	}
 

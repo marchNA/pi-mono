@@ -6,9 +6,15 @@ This changelog tracks modifications made in this fork (`marchNA/pi-mono`), diver
 
 ### Added
 - `/extensions` slash command: list installed extensions, install new ones from the `examples/extensions/` catalog, and open extension files in the editor
+- Input component: `placeholder` support with dimmed text and cursor display when value is empty
+- Container: `clearChildren()` and `getHeight()` helper methods
+- Model registry: `reloadCustomModels()` to refresh custom providers after adding one
+- Model registry: `getAvailable()`, `getApiKey()`, `getApiKeyForModel()` now check `customProviderApiKeys` for custom providers
+- Anthropic session key detection supports `cr_` prefix
 
 ### Changed
 - `/model` > "Add custom provider" API Protocol step now uses a visual radio selector instead of a text input field
+- Updated generated model list (`models.generated.ts`)
 
 ### Fixed
 - `/model` selector: cursor arrow appeared on both a model row and "Add custom provider" simultaneously (missing `onAddProviderAction` state checks in 3 places)

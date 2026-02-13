@@ -17,6 +17,7 @@ interface InputState {
 export class Input implements Component, Focusable {
 	private value: string = "";
 	private cursor: number = 0; // Cursor position in the value
+	private placeholder: string = "";
 	public onSubmit?: (value: string) => void;
 	public onEscape?: () => void;
 
@@ -41,6 +42,15 @@ export class Input implements Component, Focusable {
 	setValue(value: string): void {
 		this.value = value;
 		this.cursor = Math.min(this.cursor, value.length);
+	}
+
+	setPlaceholder(placeholder: string): void {
+		this.placeholder = placeholder;
+	}
+
+	setPosition(_x: number, _y: number): void {
+		// Position is stored but not used in current implementation
+		// This is a placeholder for future positioning support
 	}
 
 	handleInput(data: string): void {
@@ -427,6 +437,20 @@ export class Input implements Component, Focusable {
 
 		if (availableWidth <= 0) {
 			return [prompt];
+		}
+
+		// Show placeholder if value is empty
+		if (this.value.length === 0 && this.placeholder.length > 0) {
+			const marker = this.focused ? CURSOR_MARKER : "";
+			const placeholderText =
+				this.placeholder.length > availableWidth
+					? `${this.placeholder.slice(0, availableWidth - 1)}…`
+					: this.placeholder;
+			const cursorChar = "\x1b[7m \x1b[27m"; // Inverse video space for cursor
+			const textWithCursor = `${marker}${cursorChar}\x1b[2m${placeholderText}\x1b[22m`;
+			const visualLength = visibleWidth(textWithCursor);
+			const padding = " ".repeat(Math.max(0, availableWidth - visualLength));
+			return [prompt + textWithCursor + padding];
 		}
 
 		let visibleText = "";
