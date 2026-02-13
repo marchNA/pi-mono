@@ -598,7 +598,7 @@ export default function (pi: ExtensionAPI) {
 
 		if (!contextPressureWarned) {
 			const usage = ctx.getContextUsage();
-			if (usage && usage.percent >= CONTEXT_PRESSURE_THRESHOLD) {
+			if (usage && usage.percent != null && usage.percent >= CONTEXT_PRESSURE_THRESHOLD) {
 				contextPressureWarned = true;
 				pi.sendMessage(
 					{
